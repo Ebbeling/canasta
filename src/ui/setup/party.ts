@@ -21,6 +21,19 @@ export function seatsForLayout(playerCount: number, teamCount: number): number[]
   return seats;
 }
 
+/**
+ * Grows or trims the team names to match a new number of teams.
+ *
+ * Slicing alone only ever shortened the list, so going from two teams to four
+ * left two entries `undefined` while the first two were empty strings. Two
+ * different flavours of "no name" then produced two different messages for the
+ * same situation. Padding keeps every team represented by an empty string, and
+ * the names that were already typed keep their place.
+ */
+export function resizeTeamNames(current: readonly string[], teamCount: number): string[] {
+  return Array.from({ length: teamCount }, (_unused, index) => current[index] ?? '');
+}
+
 /** A fresh draft for a rule set's own declared shape. */
 export function draftForShape(shape: PartyShape, names: string[] = []): PartyDraft {
   return {

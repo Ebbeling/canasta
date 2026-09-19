@@ -5,6 +5,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { classic } from '@/rules/builtin';
 import { partyOverrides } from '@/application/viewmodels/setup';
+import { resizeTeamNames } from '@/ui/setup/party';
 import { createTestContext, renderAt, type TestContext } from '@/test/renderRoute';
 
 /**
@@ -344,5 +345,175 @@ describe('round entry follows the game, not a fixed pair of teams', () => {
 
     const bars = await screen.findAllByRole('progressbar');
     expect(bars).toHaveLength(6);
+  });
+});
+
+/**
+ * Regression cover for the layout picker.
+ *
+ * The bug: the segmented control on step 1 decided whether the chosen party
+ * shape became overrides and got validated, while the layout buttons on step 2
+ * were offered regardless of it. Picking "Ieder voor zich" in standard mode
+ * therefore produced a draft of four teams of one, which was then measured
+ * against the rule set's own two teams of two — five errors and a dead end.
+ *
+ * The rule these tests pin down: the shape the user is looking at is the shape
+ * that counts, whichever segment happens to be selected.
+ */
+describe('the selected layout is authoritative', () => {
+  /** The validation messages as shown, in order. */
+  function shownErrors(): string[] {
+    return (document.body.textContent ?? '')
+      .split('Fout')
+      .slice(1)
+      .map((chunk) => chunk.trim().split('\n')[0]?.trim() ?? '');
+  }
+
+  it('accepts individual play chosen in standard mode', async () => {
+    const user = userEvent.setup();
+    const ctx = await newContext();
+    renderAt(ctx, '/new');
+
+    // Deliberately no "Aangepast": standard is the default.
+    await user.click(await screen.findByText('Classic Canasta'));
+    await user.click(await screen.findByRole('button', { name: 'Ieder voor zich' }));
+
+    expect(shownErrors()).toEqual([]);
+    expect(screen.getByRole('button', { name: /Verder/ })).toBeEnabled();
+  });
+
+  it('accepts another grouping chosen in standard mode', async () => {
+    const user = userEvent.setup();
+    const ctx = await newContext();
+    // A preset that declares six players: standard mode fixes the count at six
+    // and still leaves a real choice between groupings.
+    const outcome = await ctx.services.ruleSets.createPreset({
+      sourceId: classic.id,
+      sourceOrigin: 'builtin',
+      name: 'Zes spelers',
+      overrides: partyOverrides({ playerCount: 6, teamCount: 3, mode: 'partnership' }),
+    });
+    if (!outcome.ok) throw new Error('kon geen preset maken');
+    renderAt(ctx, '/new');
+
+    await user.click(await screen.findByText('Zes spelers'));
+    expect(await screen.findByRole('button', { name: 'Eén speler meer' })).toBeDisabled();
+    await user.click(await screen.findByRole('button', { name: '2 teams van 3' }));
+
+    expect(shownErrors()).toEqual([]);
+    expect(screen.getByRole('button', { name: /Verder/ })).toBeEnabled();
+  });
+
+  it('still accepts individual play chosen in custom mode', async () => {
+    const user = userEvent.setup();
+    const ctx = await newContext();
+    renderAt(ctx, '/new');
+
+    await user.click(await screen.findByLabelText('Aangepast'));
+    await user.click(await screen.findByText('Classic Canasta'));
+    await user.click(await screen.findByRole('button', { name: 'Ieder voor zich' }));
+
+    expect(shownErrors()).toEqual([]);
+    expect(screen.getByRole('button', { name: /Verder/ })).toBeEnabled();
+  });
+
+  it('carries a standard-mode layout change all the way into the stored game', async () => {
+    const user = userEvent.setup();
+    const ctx = await newContext();
+    renderAt(ctx, '/new');
+
+    await user.click(await screen.findByText('Classic Canasta'));
+    await user.click(await screen.findByRole('button', { name: 'Ieder voor zich' }));
+    await user.click(screen.getByRole('button', { name: /Verder/ }));
+    await user.click(await screen.findByRole('button', { name: 'Partij starten' }));
+
+    await waitFor(async () => expect(await ctx.services.games.list()).toHaveLength(1));
+
+    const [summary] = await ctx.services.games.list();
+    const loaded = await ctx.services.games.load(summary!.id);
+
+    expect(loaded!.game.players).toHaveLength(4);
+    expect(loaded!.game.teams).toHaveLength(4);
+    expect(loaded!.game.teams.every((team) => team.memberIds.length === 1)).toBe(true);
+    // The frozen rule set carries the shape that was actually played.
+    expect(loaded!.game.effectiveRuleSet.configuration.teams).toEqual({
+      mode: 'individual',
+      count: 4,
+      teamSize: 1,
+    });
+  });
+
+  it('leaves an untouched Classic game exactly as it was', async () => {
+    const user = userEvent.setup();
+    const ctx = await newContext();
+    renderAt(ctx, '/new');
+
+    await user.click(await screen.findByText('Classic Canasta'));
+    await user.click(await screen.findByRole('button', { name: /Verder/ }));
+    await user.click(await screen.findByRole('button', { name: 'Partij starten' }));
+
+    await waitFor(async () => expect(await ctx.services.games.list()).toHaveLength(1));
+
+    const [summary] = await ctx.services.games.list();
+    const loaded = await ctx.services.games.load(summary!.id);
+
+    expect(loaded!.game.players).toHaveLength(4);
+    expect(loaded!.game.teams).toHaveLength(2);
+    expect(loaded!.game.effectiveRuleSet.configuration.teams).toEqual(classic.configuration.teams);
+    expect(loaded!.game.effectiveRuleSet.configuration.players).toEqual(
+      classic.configuration.players,
+    );
+    // Choosing nothing is not a house rule.
+    expect(loaded!.game.gameOverrides).toEqual([]);
+  });
+
+  it('never shows a validation message without a subject', async () => {
+    const user = userEvent.setup();
+    const ctx = await newContext();
+    renderAt(ctx, '/new');
+
+    await user.click(await screen.findByLabelText('Aangepast'));
+    await user.click(await screen.findByText('Classic Canasta'));
+    await user.click(await screen.findByRole('button', { name: 'Ieder voor zich' }));
+    await user.click(await screen.findByRole('button', { name: '2 teams van 2' }));
+
+    const teamFields = await screen.findAllByLabelText(/^Naam van team/);
+    expect(teamFields).toHaveLength(2);
+    expect(teamFields.every((field) => (field as HTMLInputElement).value === '')).toBe(true);
+    // "moet 2 spelers hebben." with nothing in front of it is the shape of the
+    // old bug; no message may ever begin that way.
+    expect(shownErrors().some((message) => message.startsWith('moet'))).toBe(false);
+  });
+});
+
+describe('team names follow the number of teams', () => {
+  it('grows and shrinks the list, keeping the names already typed', () => {
+    expect(resizeTeamNames(['', ''], 4)).toEqual(['', '', '', '']);
+    expect(resizeTeamNames(['Rood', 'Blauw'], 4)).toEqual(['Rood', 'Blauw', '', '']);
+    expect(resizeTeamNames(['Rood', 'Blauw', 'Groen'], 2)).toEqual(['Rood', 'Blauw']);
+    expect(resizeTeamNames([], 3)).toEqual(['', '', '']);
+  });
+
+  it('leaves no hole, so a team is never nameless while another is merely empty', () => {
+    const grown = resizeTeamNames(['', ''], 4);
+    expect(grown).toHaveLength(4);
+    expect(grown.every((name) => typeof name === 'string')).toBe(true);
+  });
+
+  it('keeps a name field for every team after a layout change in the wizard', async () => {
+    const user = userEvent.setup();
+    const ctx = await newContext();
+    renderAt(ctx, '/new');
+
+    await user.click(await screen.findByLabelText('Aangepast'));
+    await user.click(await screen.findByText('Classic Canasta'));
+
+    const addPlayer = await screen.findByRole('button', { name: 'Eén speler meer' });
+    await user.click(addPlayer);
+    await user.click(addPlayer);
+    await user.click(await screen.findByRole('button', { name: '3 teams van 2' }));
+
+    expect(await screen.findAllByLabelText(/^Naam van team/)).toHaveLength(3);
+    expect(await screen.findByLabelText('Naam van team 3')).toBeInTheDocument();
   });
 });

@@ -125,11 +125,18 @@ export function NewGameRoute() {
       }
     : undefined;
 
-  /** Party shape first, then everything the settings editor collected. */
+  /**
+   * Party shape first, then everything the settings editor collected.
+   *
+   * The shape the user has in front of them is always the one that counts.
+   * `mode` decides whether the *number of players* may be changed, and nothing
+   * more — it must never decide whether a choice the interface offered is
+   * honoured. A shape that matches the rule set's own is filtered out further
+   * down by `meaningfulOverrides`, so a plain standard game still records no
+   * overrides at all.
+   */
   function collectOverrides(): ConfigOverride[] {
-    // A standard game leaves the shape exactly as the rule set declares it, so
-    // it contributes no overrides at all and the game records none.
-    const shaped = mode === 'custom' && shape ? partyOverrides(shape) : [];
+    const shaped = shape ? partyOverrides(shape) : [];
     const shapedPaths = new Set(shaped.map((entry) => entry.path));
 
     return [
@@ -143,9 +150,8 @@ export function NewGameRoute() {
   const setupIssues = useMemo(() => {
     if (ruleSet.status !== 'ready' || !party || !shape) return [];
 
-    // A custom party is judged by the shape it is about to be played with; a
-    // standard one by whatever its rule set declares. Either way the reading of
-    // that configuration happens in the application layer, not here.
+    // Judged against the shape that will actually be played, for every game.
+    // The reading of that configuration happens in the application layer.
     return validateGameSetup(
       ruleSet.data,
       {
@@ -156,10 +162,10 @@ export function NewGameRoute() {
         teamSeats: party.teamSeats,
         overrides: [],
       },
-      mode === 'custom' ? shape : undefined,
+      shape,
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ruleSet, party, mode, chosen]);
+  }, [ruleSet, party, chosen]);
 
   async function start() {
     if (!chosen || !party) return;
@@ -201,6 +207,22 @@ export function NewGameRoute() {
 
   const stepIndex = STEPS.indexOf(step);
   const blocked = setupIssues.some((issue) => issue.severity === 'error');
+
+  /**
+   * Whether this game actually deviates from the rule set it started from.
+   *
+   * Read off the choices themselves rather than the segmented control: a
+   * standard-mode game whose teams were re-arranged is a deviation, and a
+   * custom-mode game that changed nothing is not.
+   */
+  const declared = ruleSet.status === 'ready' ? partyShapeOf(ruleSet.data) : undefined;
+  const deviates =
+    Object.keys(values).length > 0 ||
+    (shape !== undefined &&
+      declared !== undefined &&
+      (shape.playerCount !== declared.playerCount ||
+        shape.teamCount !== declared.teamCount ||
+        shape.mode !== declared.mode));
 
   return (
     <div className="flex flex-1 flex-col">
@@ -260,7 +282,7 @@ export function NewGameRoute() {
             />
             <Muted>
               {mode === 'standard'
-                ? 'De regelset bepaalt het aantal spelers en teams.'
+                ? 'Je speelt met het aantal spelers dat de regelset voorschrijft. De indeling in teams kies je zelf.'
                 : 'Je kiest zelf hoeveel spelers meedoen en hoe ze zijn ingedeeld.'}
             </Muted>
 
@@ -329,7 +351,7 @@ export function NewGameRoute() {
                 <p className="truncate text-caption text-muted">{setup.summaryLine}</p>
               </div>
               <span className="shrink-0 text-caption font-semibold text-accent">
-                {mode === 'custom' ? 'Aangepast' : 'Standaard'}
+                {deviates ? 'Aangepast' : 'Standaard'}
               </span>
             </div>
 

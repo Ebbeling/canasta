@@ -8,7 +8,7 @@ import {
 import { Minus, Plus } from '@/ui/common/icons';
 import { Suit } from '@/ui/common/Suit';
 import { Block, Note, SectionLabel } from '@/ui/common/primitives';
-import { seatsForLayout, type PartyDraft } from './party';
+import { resizeTeamNames, seatsForLayout, type PartyDraft } from './party';
 
 export type { PartyDraft };
 
@@ -72,7 +72,7 @@ export function PartyEditor({
 
     onChange({
       playerNames,
-      teamNames: draft.teamNames.slice(0, layout.teamCount),
+      teamNames: resizeTeamNames(draft.teamNames, layout.teamCount),
       teamSeats: seatsForLayout(next, layout.teamCount),
       mode: layout.mode,
     });
@@ -81,7 +81,7 @@ export function PartyEditor({
   function chooseLayout(shape: PartyShape) {
     onChange({
       ...draft,
-      teamNames: draft.teamNames.slice(0, shape.teamCount),
+      teamNames: resizeTeamNames(draft.teamNames, shape.teamCount),
       teamSeats: seatsForLayout(playerCount, shape.teamCount),
       mode: shape.mode,
     });

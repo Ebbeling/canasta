@@ -192,6 +192,17 @@ export function defaultTeamSeats(ruleSet: RuleSet): number[][] {
 }
 
 /**
+ * How to name a team in a message.
+ *
+ * A team the user has not named yet is an empty string, not `undefined`, so a
+ * plain `??` would leave a sentence starting with nothing at all — "moet 2
+ * spelers hebben." Both cases fall back to the same positional name.
+ */
+function teamLabel(draft: GameSetupDraft, index: number): string {
+  return draft.teamNames[index]?.trim() || `Team ${index + 1}`;
+}
+
+/**
  * Checks the people, not the rules — the rules are checked by the pipeline.
  *
  * `shape` is for a custom game, which is judged against the party it is about
@@ -253,7 +264,7 @@ export function validateGameSetup(
       issues.push({
         code: 'setup.teamSize',
         severity: 'error',
-        message: `${draft.teamNames[index] ?? `Team ${index + 1}`} moet ${teams.teamSize} ${
+        message: `${teamLabel(draft, index)} moet ${teams.teamSize} ${
           teams.teamSize === 1 ? 'speler' : 'spelers'
         } hebben.`,
       });
@@ -300,7 +311,7 @@ export function validateGameSetup(
       issues.push({
         code: 'setup.emptyTeam',
         severity: 'error',
-        message: `${draft.teamNames[index]?.trim() || `Team ${index + 1}`} heeft nog geen spelers.`,
+        message: `${teamLabel(draft, index)} heeft nog geen spelers.`,
       });
     }
   });
