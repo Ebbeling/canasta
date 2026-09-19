@@ -15,13 +15,29 @@ import {
 } from '@/ui/common/primitives';
 import { GameNotFound } from './GameNotFound';
 
-/** The four columns the header and every row share. */
-const GRID = 'grid grid-cols-[3.25rem_1fr_1fr_2.75rem] items-center gap-x-1';
+/**
+ * The columns the header and every row share: the round number, one per team,
+ * and the correction link. Built from the game rather than written down, which
+ * is what lets three or six teams line up as readily as two.
+ */
+function columnsFor(teamCount: number) {
+  return { gridTemplateColumns: `3.25rem repeat(${teamCount}, minmax(0,1fr)) 2.75rem` };
+}
 
-function Row({ row, gameId }: { row: RoundRowVM; gameId: string | undefined }) {
+const GRID = 'grid items-center gap-x-1';
+
+function Row({
+  row,
+  gameId,
+  columns,
+}: {
+  row: RoundRowVM;
+  gameId: string | undefined;
+  columns: React.CSSProperties;
+}) {
   return (
     <li className="border-t border-border">
-      <div className={`${GRID} min-h-15 px-4 py-2.5`}>
+      <div style={columns} className={`${GRID} min-h-15 px-4 py-2.5 lg:px-6`}>
         <Score tight={false} className="text-xl text-muted">
           {row.displayNumber}
         </Score>
@@ -72,6 +88,7 @@ export function HistoryRoute() {
 
   const { rows, teams } = history.data;
   const last = rows.at(-1);
+  const columns = columnsFor(teams.length);
 
   return (
     <div className="flex flex-1 flex-col">
@@ -83,44 +100,29 @@ export function HistoryRoute() {
         back={`/games/${gameId}`}
       />
 
-      <div className="flex flex-1 flex-col gap-3 pt-1">
+      <div
+        data-wide
+        className="flex flex-1 flex-col gap-3 pt-1 lg:grid lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:content-start lg:items-start lg:gap-6"
+      >
         {rows.length === 0 ? (
-          <EmptyState
-            title="Nog geen rondes gespeeld"
-            description="Zodra je een ronde invoert, verschijnt hier de hele opbouw van de stand."
-            action={
-              <LinkButton to={`/games/${gameId}/round`} variant="primary" size="lg" block>
-                Ronde invoeren
-              </LinkButton>
-            }
-          />
+          <div className="flex flex-1 flex-col lg:col-span-2">
+            <EmptyState
+              title="Nog geen rondes gespeeld"
+              description="Zodra je een ronde invoert, verschijnt hier de hele opbouw van de stand."
+              action={
+                <LinkButton to={`/games/${gameId}/round`} variant="primary" size="lg" block>
+                  Ronde invoeren
+                </LinkButton>
+              }
+            />
+          </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-2.5">
-              {teams.map((team, index) => (
-                <Block
-                  key={team.teamId}
-                  className={`px-4 py-3 ${index === 1 ? 'text-right' : ''}`}
-                >
-                  <span
-                    className={`flex items-center gap-1.5 text-caption font-semibold text-muted ${
-                      index === 1 ? 'justify-end' : ''
-                    }`}
-                  >
-                    {index === 1 ? null : <Suit index={index} />}
-                    <span className="truncate">{team.name}</span>
-                    {index === 1 ? <Suit index={index} /> : null}
-                  </span>
-                  <Score className="block text-3xl leading-tight">
-                    {last?.teams.find((entry) => entry.teamId === team.teamId)?.runningTotalText ??
-                      '0'}
-                  </Score>
-                </Block>
-              ))}
-            </div>
-
-            <Block className="overflow-hidden py-1">
-              <div className={`${GRID} px-4 pb-1.5 pt-2 text-micro font-semibold uppercase tracking-label text-muted`}>
+            <Block className="overflow-hidden py-1 lg:order-1 lg:rounded-[1.375rem]">
+              <div
+                style={columns}
+                className={`${GRID} px-4 pb-1.5 pt-2 text-micro font-semibold uppercase tracking-label text-muted lg:px-6 lg:pt-3.5`}
+              >
                 <span>Ronde</span>
                 {teams.map((team, index) => (
                   <span key={team.teamId} className="truncate text-right">
@@ -131,12 +133,29 @@ export function HistoryRoute() {
               </div>
               <ul>
                 {rows.map((row) => (
-                  <Row key={row.roundId} row={row} gameId={gameId} />
+                  <Row key={row.roundId} row={row} gameId={gameId} columns={columns} />
                 ))}
               </ul>
             </Block>
 
-            <p className="px-2 text-center text-caption text-muted">
+            {/* The standings this table adds up to. Beside it from `lg`, where
+                the design keeps secondary information in its own column. */}
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-2.5 lg:order-2 lg:sticky lg:top-6 lg:grid-cols-1">
+              {teams.map((team, index) => (
+                <Block key={team.teamId} className="px-4 py-3">
+                  <span className="flex items-center gap-1.5 text-caption font-semibold text-muted">
+                    <Suit index={index} />
+                    <span className="truncate">{team.name}</span>
+                  </span>
+                  <Score className="block text-3xl leading-tight">
+                    {last?.teams.find((entry) => entry.teamId === team.teamId)?.runningTotalText ??
+                      '0'}
+                  </Score>
+                </Block>
+              ))}
+            </div>
+
+            <p className="px-2 text-center text-caption text-muted lg:order-3 lg:col-span-2">
               Tik het potlood om een ronde te corrigeren. Latere standen worden herberekend.
             </p>
           </>

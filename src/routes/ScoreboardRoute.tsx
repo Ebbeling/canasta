@@ -71,8 +71,8 @@ function ScoreCard({ board }: { board: ScoreboardVM }) {
   const meldLines = [...new Set(board.teams.map((team) => team.infoLines[1]).filter(Boolean))];
 
   return (
-    <Card className="px-5 pb-5 pt-5.5">
-      <div className="grid grid-cols-[1fr_5.25rem_1fr] items-start gap-x-1.5">
+    <Card className="px-5 pb-5 pt-5.5 lg:px-8 lg:pb-7 lg:pt-7.5">
+      <div className="grid grid-cols-[1fr_5.25rem_1fr] items-start gap-x-1.5 lg:grid-cols-[1fr_6.25rem_1fr] lg:gap-x-2">
         {first ? <TeamColumn team={first} index={0} align="start" /> : null}
 
         <div className="flex flex-col items-center gap-1 self-center pt-3.5">

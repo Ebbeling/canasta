@@ -44,15 +44,20 @@ function RuleSetRow({
   actions: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-2.5 border-t border-border px-4 py-3.5 first:border-t-0">
-      <div className="min-w-0">
-        <p className="flex flex-wrap items-center gap-2 text-body font-semibold">
-          {name}
-          {badge}
-        </p>
-        <p className="mt-0.5 text-caption text-muted">{summaryLine}</p>
+    // The actions drop under the name while the row is narrow and move beside
+    // it once there is room for both. A container query, because that depends
+    // on how wide this list is, not on how wide the window is.
+    <div className="@container border-t border-border first:border-t-0">
+      <div className="flex flex-col gap-2.5 px-4 py-3.5 @[32rem]:flex-row @[32rem]:items-center @[32rem]:justify-between @[32rem]:gap-5 @[32rem]:px-5.5">
+        <div className="min-w-0">
+          <p className="flex flex-wrap items-center gap-2 text-body font-semibold">
+            {name}
+            {badge}
+          </p>
+          <p className="mt-0.5 text-caption text-muted">{summaryLine}</p>
+        </div>
+        <div className="flex flex-wrap gap-2 @[32rem]:shrink-0 @[32rem]:justify-end">{actions}</div>
       </div>
-      <div className="flex flex-wrap gap-2">{actions}</div>
     </div>
   );
 }

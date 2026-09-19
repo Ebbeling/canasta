@@ -9,12 +9,12 @@ import { ErrorPanel, LinkButton, PageTitle } from '@/ui/common/primitives';
  * carrying its own header and the in-game destinations in a bottom bar.
  *
  * From `md` the design replaces that bar with a left rail and gives the content
- * a reading column of 880px — not a stretched phone. A screen that wants more
- * room for a wide arrangement marks itself with `data-wide`, and the column
- * grows to 1100px for it; `:has()` keeps that decision with the screen that
- * knows it, without threading a prop through the router. A browser without
- * `:has()` simply keeps the 880px column, which is a narrower layout rather
- * than a broken one.
+ * a reading column of 880px inside 48px of page padding — not a stretched
+ * phone. A screen that wants more room for a wide arrangement marks itself with
+ * `data-wide`, and the column grows to the 960px the design uses for round
+ * entry; `:has()` keeps that decision with the screen that knows it, without
+ * threading a prop through the router. A browser without `:has()` simply keeps
+ * the 880px column, which is a narrower layout rather than a broken one.
  */
 export function AppShell() {
   return (
@@ -30,7 +30,7 @@ export function AppShell() {
 
       <main
         id="inhoud"
-        className="mx-auto flex min-h-dvh w-full max-w-page flex-col px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:px-6 md:max-w-[55rem] md:px-10 md:py-2 md:has-[[data-wide]]:max-w-[68.75rem]"
+        className="mx-auto flex min-h-dvh w-full max-w-page flex-col px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:px-6 md:max-w-[61rem] md:px-12 md:pb-10 md:pt-5 md:has-[[data-wide]]:max-w-[66rem]"
       >
         <Outlet />
       </main>

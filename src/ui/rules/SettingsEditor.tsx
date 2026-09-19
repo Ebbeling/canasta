@@ -117,7 +117,7 @@ export function SettingsEditor({ sections, values, onChange, changedPaths }: Set
   return (
     <div className="flex flex-col gap-3">
       {sections.map((section) => (
-        <Block key={section.category} className="px-4 py-1.5">
+        <Block key={section.category} className="px-4 py-1.5 lg:rounded-[1.375rem] lg:px-6.5">
           <SectionLabel className="block pb-1 pt-2.5">{section.title}</SectionLabel>
 
           {section.values.map((value) => {
@@ -134,7 +134,7 @@ export function SettingsEditor({ sections, values, onChange, changedPaths }: Set
                       {changedPaths?.has(value.key) ? <Badge tone="accent">Gewijzigd</Badge> : null}
                     </label>
                     {value.help ? (
-                      <p className="mt-0.5 text-caption leading-snug text-muted text-pretty">
+                      <p className="mt-0.5 max-w-[32.5rem] text-caption leading-snug text-muted text-pretty">
                         {value.help}
                       </p>
                     ) : null}
@@ -155,7 +155,7 @@ export function SettingsEditor({ sections, values, onChange, changedPaths }: Set
                 ) : null}
 
                 {value.rows ? (
-                  <ul className="mt-2 grid grid-cols-4 gap-1.5">
+                  <ul className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(3.5rem,4.5rem))] gap-1.5">
                     {value.rows.map((row) => (
                       <li key={row.label} className="rounded-tile bg-panel2 px-1.5 py-2 text-center">
                         <Score tight={false} className="block text-note">

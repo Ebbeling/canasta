@@ -26,10 +26,17 @@ const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: 'dark', label: 'Donker' },
 ];
 
-/** A settings group: a small caps label above one bordered block of rows. */
+/**
+ * A settings group: a small caps label above one bordered block of rows.
+ *
+ * The `break-inside-avoid` is what lets the page flow into two columns on a
+ * wide screen without a group ever being cut in half by the column break.
+ */
+const GROUP = 'flex flex-col gap-2 lg:mb-5 lg:break-inside-avoid';
+
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="flex flex-col gap-2">
+    <section className={GROUP}>
       <SectionLabel className="px-1">{title}</SectionLabel>
       <Block className="overflow-hidden">{children}</Block>
     </section>
@@ -75,7 +82,14 @@ export function SettingsRoute() {
     <div className="flex flex-1 flex-col pb-6">
       <AppBar title="Instellingen" back="/" />
 
-      <div className="flex flex-col gap-4.5 pt-2">
+      {/*
+       * Settings is a stack of short, independent groups. In an 880px reading
+       * column a single stack leaves most of the width unused, so from `lg` the
+       * groups flow into two columns — CSS columns rather than a grid, because
+       * the groups differ in height and a grid would leave a hole under every
+       * short one. Nothing about the order or the markup changes.
+       */}
+      <div className="flex flex-col gap-4.5 pt-2 lg:block lg:columns-2 lg:gap-x-5">
         <Group title="Weergave">
           <div className="flex flex-col gap-2.5 px-4 py-3.5">
             <p className="text-body font-medium">Thema</p>
@@ -138,7 +152,9 @@ export function SettingsRoute() {
           </Row>
         </Group>
 
-        <ImportGameSection />
+        <div className={GROUP}>
+          <ImportGameSection />
+        </div>
 
         <Group title="App">
           {install.canInstall ? (
@@ -198,10 +214,11 @@ export function SettingsRoute() {
           ))}
         </Group>
 
-        <Muted className="text-center text-xs">
-          Canasta Puntentelling · versie 0.1.0 · werkt offline
-        </Muted>
       </div>
+
+      <Muted className="pt-4.5 text-center text-xs">
+        Canasta Puntentelling · versie 0.1.0 · werkt offline
+      </Muted>
 
       <ConfirmDialog
         open={confirmClear}

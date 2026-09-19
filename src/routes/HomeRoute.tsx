@@ -123,20 +123,37 @@ export function HomeRoute() {
       ) : null}
 
       {/*
-       * From `lg` the design puts what you were doing beside what you did
-       * before it, rather than under it. Below that the order is unchanged.
+       * From `lg` the design puts the game you were playing beside the way into
+       * a new one. The list of earlier games stays full width underneath, which
+       * is where a long game title has the room to be read. Below `lg` nothing
+       * about the order changes.
        */}
-      <div className="flex flex-col gap-5.5 lg:grid lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:items-start lg:gap-6">
-        <div className="flex flex-col gap-5.5">
-      {resume.status === 'ready' ? <ResumeCard summary={resume.data} /> : null}
-
       {!isEmpty ? (
-        <LinkButton to="/new" variant="secondary" size="lg" block className="rounded-block">
-          <Plus />
-          Nieuwe partij
-        </LinkButton>
-      ) : null}
+        <div className="flex flex-col gap-5.5 lg:grid lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:items-stretch lg:gap-5">
+          {resume.status === 'ready' ? <ResumeCard summary={resume.data} /> : null}
+
+          <LinkButton
+            to="/new"
+            variant="secondary"
+            size="lg"
+            block
+            className={`rounded-block lg:h-full lg:flex-col lg:justify-center lg:gap-3 lg:rounded-sheet lg:border-dashed lg:px-7 lg:py-6 ${
+              resume.status === 'ready' ? '' : 'lg:col-span-2'
+            }`}
+          >
+            <span className="flex items-center gap-2 lg:size-14 lg:justify-center lg:rounded-block lg:bg-panel2">
+              <Plus />
+              <span className="lg:hidden">Nieuwe partij</span>
+            </span>
+            <span className="hidden font-display text-[1.375rem] font-semibold tracking-title lg:block">
+              Nieuwe partij
+            </span>
+            <span className="hidden text-center text-note font-normal leading-snug text-muted text-pretty lg:block">
+              Classic, Modern American of Two-Handed. Klaar in drie stappen.
+            </span>
+          </LinkButton>
         </div>
+      ) : null}
 
       {recent.status === 'loading' ? <LoadingState /> : null}
 
@@ -157,7 +174,7 @@ export function HomeRoute() {
               <li key={summary.id} className="border-t border-border first:border-t-0">
                 <Link
                   to={`/games/${summary.id}`}
-                  className="flex min-h-15 items-center gap-3 px-4 py-3 transition-colors hover:bg-panel2"
+                  className="flex min-h-15 items-center gap-3 px-4 py-3 transition-colors hover:bg-panel2 md:gap-4 md:px-5.5"
                 >
                   <GameSummaryRow summary={summary} />
                 </Link>
@@ -166,7 +183,6 @@ export function HomeRoute() {
           </Block>
         </section>
       ) : null}
-      </div>
     </div>
   );
 }

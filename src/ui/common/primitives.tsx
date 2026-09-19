@@ -126,7 +126,7 @@ export function Card({
   as?: 'div' | 'section' | 'article';
 }) {
   return (
-    <Tag className={`rounded-card border border-border bg-panel shadow-soft ${className}`}>
+    <Tag className={`rounded-card border border-border bg-panel shadow-soft lg:rounded-sheet ${className}`}>
       {children}
     </Tag>
   );
@@ -137,13 +137,18 @@ export function Block({
   children,
   className = '',
   as: Tag = 'div',
+  id,
 }: {
   children: ReactNode;
   className?: string;
   as?: 'div' | 'section' | 'article' | 'ul' | 'ol';
+  /** For a block a table of contents links to. */
+  id?: string;
 }) {
   return (
-    <Tag className={`rounded-list border border-border bg-panel ${className}`}>{children}</Tag>
+    <Tag id={id} className={`rounded-list border border-border bg-panel ${className}`}>
+      {children}
+    </Tag>
   );
 }
 
