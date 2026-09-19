@@ -4,9 +4,10 @@ import { BoardIcon, BookIcon, ClockIcon } from '@/ui/common/icons';
 /**
  * The three destinations inside a game.
  *
- * A bottom bar on a phone, where it sits under the thumb; from `sm` up it moves
- * to a centred row below the header, because a bar pinned to the bottom of a
- * tall desktop window is a long way from anything the user is reading.
+ * A bottom bar on a phone, where it sits under the thumb; at `sm` it becomes a
+ * centred row below the header. From `md` it disappears altogether, because the
+ * left rail carries the same three destinations and repeating them would be
+ * two navigations for one job.
  *
  * Round entry deliberately does not render this: entering a round is a focus
  * mode with its own way out.
@@ -21,7 +22,7 @@ export function GameNav({ gameId }: { gameId: string }) {
   return (
     <nav
       aria-label="In deze partij"
-      className="sticky bottom-0 z-20 -mx-4 mt-4 border-t border-border bg-panel px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.625rem)] sm:static sm:mx-0 sm:mb-1 sm:rounded-block sm:border sm:px-2 sm:pb-2"
+      className="sticky bottom-0 z-20 -mx-4 mt-4 border-t border-border bg-panel px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.625rem)] sm:static sm:mx-0 sm:mb-1 sm:rounded-block sm:border sm:px-2 sm:pb-2 md:hidden"
     >
       <ul className="grid grid-cols-3">
         {items.map(({ to, label, Icon, end }) => (

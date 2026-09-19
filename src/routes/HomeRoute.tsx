@@ -27,10 +27,11 @@ function Masthead() {
           ♠ <span className="text-heart">♥</span> ♣ <span className="text-heart">♦</span>
         </p>
       </div>
+      {/* The rail carries this from `md` up; two of them would be one too many. */}
       <IconLink
         to="/settings"
         label="Instellingen"
-        className="size-11 rounded-control border border-border bg-panel"
+        className="size-11 rounded-control border border-border bg-panel md:hidden"
       >
         <Sliders />
       </IconLink>
@@ -121,6 +122,12 @@ export function HomeRoute() {
         </div>
       ) : null}
 
+      {/*
+       * From `lg` the design puts what you were doing beside what you did
+       * before it, rather than under it. Below that the order is unchanged.
+       */}
+      <div className="flex flex-col gap-5.5 lg:grid lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:items-start lg:gap-6">
+        <div className="flex flex-col gap-5.5">
       {resume.status === 'ready' ? <ResumeCard summary={resume.data} /> : null}
 
       {!isEmpty ? (
@@ -129,6 +136,7 @@ export function HomeRoute() {
           Nieuwe partij
         </LinkButton>
       ) : null}
+        </div>
 
       {recent.status === 'loading' ? <LoadingState /> : null}
 
@@ -158,6 +166,7 @@ export function HomeRoute() {
           </Block>
         </section>
       ) : null}
+      </div>
     </div>
   );
 }

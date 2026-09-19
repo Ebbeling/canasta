@@ -151,9 +151,13 @@ describe('scoreboard', () => {
     const game = await seedGame(ctx.services);
     renderAt(ctx, `/games/${game.id}`);
 
-    expect(await screen.findByText(/doel 5\.000 punten/)).toBeInTheDocument();
-    expect(await screen.findByText('Michel / Anne')).toBeInTheDocument();
-    expect(await screen.findByText('Paul / Karin')).toBeInTheDocument();
+    // Scoped to the page itself: the desktop rail also names the teams, and it
+    // is in the document at every width — CSS, not React, decides which of the
+    // two is shown, and jsdom has no CSS.
+    const page = within(await screen.findByRole('main'));
+    expect(await page.findByText(/doel 5\.000 punten/)).toBeInTheDocument();
+    expect(await page.findByText('Michel / Anne')).toBeInTheDocument();
+    expect(await page.findByText('Paul / Karin')).toBeInTheDocument();
   });
 
   it('refreshes automatically after a round is saved', async () => {
@@ -306,8 +310,11 @@ describe('round entry — unsaved-changes guard', () => {
 
     await screen.findByRole('link', { name: /Ronde \d+ invoeren/ });
 
-    // A second navigation, after the save, must be just as unobstructed.
-    await user.click(screen.getByRole('link', { name: 'Geschiedenis' }));
+    // A second navigation, after the save, must be just as unobstructed. The
+    // in-page bar is the one a phone shows; the rail beside it is the desktop
+    // half of the same navigation.
+    const page = within(screen.getByRole('main'));
+    await user.click(page.getByRole('link', { name: 'Geschiedenis' }));
 
     // Landed on the history screen: the saved round is listed there.
     expect(await screen.findByRole('link', { name: 'Ronde 1 bewerken' })).toBeInTheDocument();

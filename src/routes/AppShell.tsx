@@ -1,21 +1,24 @@
 import { Outlet, useRouteError } from 'react-router';
+import { DesktopRail } from '@/ui/app/DesktopRail';
 import { ErrorPanel, LinkButton, PageTitle } from '@/ui/common/primitives';
 
 /**
  * The frame every screen sits in.
  *
- * Deliberately thin: the design gives each screen its own header — a big title
- * on the home screen, a centred bar with a back affordance everywhere else —
- * so a single global navigation bar would only compete with it. What stays here
- * is the skip link, the page column and the safe-area padding.
+ * Below `md` this is what it always was: a phone-width column, with each screen
+ * carrying its own header and the in-game destinations in a bottom bar.
  *
- * The column is phone-width at every size. This is a scorecard used one-handed
- * beside a table of cards; stretching it across a desktop window would make the
- * scores harder to read, not easier.
+ * From `md` the design replaces that bar with a left rail and gives the content
+ * a reading column of 880px — not a stretched phone. A screen that wants more
+ * room for a wide arrangement marks itself with `data-wide`, and the column
+ * grows to 1100px for it; `:has()` keeps that decision with the screen that
+ * knows it, without threading a prop through the router. A browser without
+ * `:has()` simply keeps the 880px column, which is a narrower layout rather
+ * than a broken one.
  */
 export function AppShell() {
   return (
-    <div className="min-h-dvh">
+    <div className="min-h-dvh md:grid md:grid-cols-[auto_minmax(0,1fr)]">
       <a
         href="#inhoud"
         className="sr-only rounded-control bg-panel px-3 py-2 font-semibold shadow-soft focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50"
@@ -23,9 +26,11 @@ export function AppShell() {
         Naar de inhoud
       </a>
 
+      <DesktopRail />
+
       <main
         id="inhoud"
-        className="mx-auto flex min-h-dvh w-full max-w-page flex-col px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:px-6"
+        className="mx-auto flex min-h-dvh w-full max-w-page flex-col px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:px-6 md:max-w-[55rem] md:px-10 md:py-2 md:has-[[data-wide]]:max-w-[68.75rem]"
       >
         <Outlet />
       </main>

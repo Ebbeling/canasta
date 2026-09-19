@@ -91,10 +91,68 @@ export function PartyEditor({
     'inline-flex size-11 shrink-0 items-center justify-center rounded-tile transition-colors ' +
     'enabled:bg-panel enabled:shadow-soft disabled:text-border';
 
+  /**
+   * One player's name field. The same row whether or not it sits in a team.
+   *
+   * The seat label is measured against the card it lands in rather than the
+   * window: in a narrow team column it would crowd out the name field, and the
+   * placeholder already says the same thing. It stays in the accessibility tree
+   * either way, so the field is always "Speler 3" to a screen reader.
+   */
+  const seatRow = (seat: number, teamIndex: number) => (
+    <div key={seat} className="flex items-center gap-2 border-t border-border py-2.5">
+      <label
+        htmlFor={`speler-${seat}`}
+        className="sr-only shrink-0 text-note text-muted @[17rem]:not-sr-only @[17rem]:w-16"
+      >
+        Speler {seat + 1}
+      </label>
+      <input
+        id={`speler-${seat}`}
+        type="text"
+        className={TEXT_INPUT}
+        placeholder={`Speler ${seat + 1}`}
+        value={draft.playerNames[seat] ?? ''}
+        onChange={(event) => {
+          const playerNames = [...draft.playerNames];
+          playerNames[seat] = event.target.value;
+          onChange({ ...draft, playerNames });
+        }}
+      />
+      {draft.teamSeats.length > 1 && draft.mode === 'partnership' ? (
+        <select
+          aria-label={`Team van speler ${seat + 1}`}
+          className="min-h-12 shrink-0 rounded-control border border-border bg-panel2 px-2 text-note font-medium"
+          value={teamIndex}
+          onChange={(event) =>
+            onChange({
+              ...draft,
+              teamSeats: assignSeat(draft.teamSeats, seat, Number(event.target.value)),
+            })
+          }
+        >
+          {draft.teamSeats.map((_seats, index) => (
+            <option key={index} value={index}>
+              {draft.teamNames[index]?.trim() || `Team ${index + 1}`}
+            </option>
+          ))}
+        </select>
+      ) : null}
+    </div>
+  );
+
   return (
-    <div className="flex flex-col gap-3">
-      <Block className="px-4 py-1.5">
-        <SectionLabel className="block pb-1 pt-2.5">Spelers</SectionLabel>
+    // Marks the screen as one that benefits from a wider reading column; the
+    // shell picks this up so four teams can stand side by side.
+    <div data-wide className="flex flex-col gap-3">
+      {/*
+        Split by the width of this block, not the window. On a phone it is one
+        column; in the desktop reading column the count and the grouping sit
+        side by side. A viewport breakpoint would get this wrong the moment the
+        block is narrower than the window it lives in.
+      */}
+      <Block className="@container px-4 py-1.5 @[34rem]:grid @[34rem]:grid-cols-2 @[34rem]:gap-x-6 @[34rem]:px-5">
+        <SectionLabel className="block pb-1 pt-2.5 @[34rem]:col-span-2">Spelers</SectionLabel>
 
         <div className="flex min-h-touch items-center justify-between gap-3 border-t border-border py-3">
           <label htmlFor="aantal-spelers" className="text-body font-medium">
@@ -158,68 +216,53 @@ export function PartyEditor({
         </div>
       </Block>
 
-      {draft.teamSeats.map((seats, teamIndex) => (
-        <Block key={teamIndex} className="px-4 py-1.5">
-          <div className="flex items-center gap-2 border-b border-border py-2.5">
-            <Suit index={teamIndex} className="text-sm" />
-            {draft.mode === 'individual' ? (
-              <SectionLabel as="span">Speler {teamIndex + 1}</SectionLabel>
-            ) : (
-              <input
-                type="text"
-                aria-label={`Naam van team ${teamIndex + 1}`}
-                className={`${TEXT_INPUT} min-h-11`}
-                placeholder={`Team ${teamIndex + 1}`}
-                value={draft.teamNames[teamIndex] ?? ''}
-                onChange={(event) => {
-                  const teamNames = [...draft.teamNames];
-                  teamNames[teamIndex] = event.target.value;
-                  onChange({ ...draft, teamNames });
-                }}
-              />
-            )}
+      {draft.mode === 'individual' ? (
+        /*
+         * Nobody has a team to belong to, so there is nothing to group. One
+         * block with a row per player, in as many columns as the width allows —
+         * eight players used to mean eight separate cards, each repeating the
+         * same name three times over.
+         */
+        <Block className="@container px-4 py-1.5 @[34rem]:px-5">
+          <SectionLabel className="block pb-1 pt-2.5">Wie spelen er mee?</SectionLabel>
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(14rem,1fr))] @[34rem]:gap-x-6">
+            {draft.teamSeats.map((seats, teamIndex) => (
+              <div key={teamIndex} className="@container flex items-center gap-2">
+                <Suit index={teamIndex} className="w-3.5 shrink-0 text-center text-sm" />
+                <div className="min-w-0 flex-1">{seats.map((seat) => seatRow(seat, teamIndex))}</div>
+              </div>
+            ))}
           </div>
-
-          {seats.map((seat) => (
-            <div key={seat} className="flex items-center gap-2 border-t border-border py-2.5">
-              <label htmlFor={`speler-${seat}`} className="w-16 shrink-0 text-note text-muted">
-                Speler {seat + 1}
-              </label>
-              <input
-                id={`speler-${seat}`}
-                type="text"
-                className={TEXT_INPUT}
-                placeholder={`Speler ${seat + 1}`}
-                value={draft.playerNames[seat] ?? ''}
-                onChange={(event) => {
-                  const playerNames = [...draft.playerNames];
-                  playerNames[seat] = event.target.value;
-                  onChange({ ...draft, playerNames });
-                }}
-              />
-              {draft.teamSeats.length > 1 && draft.mode === 'partnership' ? (
-                <select
-                  aria-label={`Team van speler ${seat + 1}`}
-                  className="min-h-12 shrink-0 rounded-control border border-border bg-panel2 px-2 text-note font-medium"
-                  value={teamIndex}
-                  onChange={(event) =>
-                    onChange({
-                      ...draft,
-                      teamSeats: assignSeat(draft.teamSeats, seat, Number(event.target.value)),
-                    })
-                  }
-                >
-                  {draft.teamSeats.map((_seats, index) => (
-                    <option key={index} value={index}>
-                      {draft.teamNames[index]?.trim() || `Team ${index + 1}`}
-                    </option>
-                  ))}
-                </select>
-              ) : null}
-            </div>
-          ))}
         </Block>
-      ))}
+      ) : (
+        /*
+         * Teams side by side as soon as there is room for them. `auto-fit`
+         * counts the space rather than the teams, so three teams and four
+         * behave the same without either being written down anywhere.
+         */
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(18rem,1fr))] gap-3">
+          {draft.teamSeats.map((seats, teamIndex) => (
+            <Block key={teamIndex} className="@container px-4 py-1.5">
+              <div className="flex items-center gap-2 border-b border-border py-2.5">
+                <Suit index={teamIndex} className="text-sm" />
+                <input
+                  type="text"
+                  aria-label={`Naam van team ${teamIndex + 1}`}
+                  className={`${TEXT_INPUT} min-h-11`}
+                  placeholder={`Team ${teamIndex + 1}`}
+                  value={draft.teamNames[teamIndex] ?? ''}
+                  onChange={(event) => {
+                    const teamNames = [...draft.teamNames];
+                    teamNames[teamIndex] = event.target.value;
+                    onChange({ ...draft, teamNames });
+                  }}
+                />
+              </div>
+              {seats.map((seat) => seatRow(seat, teamIndex))}
+            </Block>
+          ))}
+        </div>
+      )}
 
       {currentLayout?.mode === 'partnership' ? (
         <p className="px-2 text-center text-caption leading-snug text-muted text-pretty">

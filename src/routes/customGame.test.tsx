@@ -486,6 +486,131 @@ describe('the selected layout is authoritative', () => {
   });
 });
 
+/**
+ * The setup screen at the sizes the app now supports.
+ *
+ * These assert structure rather than layout: how many name fields there are,
+ * whose they are, and what ends up stored. Whether those fields sit in one
+ * column or three is a question for CSS, and jsdom has no opinion on it.
+ */
+describe('players and teams at every supported size', () => {
+  /** Walks the wizard to a given party shape and returns the field counts. */
+  async function buildParty(
+    ctx: TestContext,
+    user: ReturnType<typeof userEvent.setup>,
+    players: number,
+    layout: string,
+  ) {
+    renderAt(ctx, '/new');
+    await user.click(await screen.findByLabelText('Aangepast'));
+    await user.click(await screen.findByText('Classic Canasta'));
+
+    const add = await screen.findByRole('button', { name: 'Eén speler meer' });
+    for (let count = 4; count < players; count += 1) await user.click(add);
+    const remove = screen.getByRole('button', { name: 'Eén speler minder' });
+    for (let count = 4; count > players; count -= 1) await user.click(remove);
+
+    await user.click(await screen.findByRole('button', { name: layout }));
+
+    return {
+      players: screen.getAllByLabelText(/^Speler \d+$/).length,
+      teamNames: screen.queryAllByLabelText(/^Naam van team/).length,
+    };
+  }
+
+  it('shows four players in two teams', async () => {
+    const user = userEvent.setup();
+    const ctx = await newContext();
+    expect(await buildParty(ctx, user, 4, '2 teams van 2')).toEqual({ players: 4, teamNames: 2 });
+  });
+
+  it('shows six players in three teams', async () => {
+    const user = userEvent.setup();
+    const ctx = await newContext();
+    expect(await buildParty(ctx, user, 6, '3 teams van 2')).toEqual({ players: 6, teamNames: 3 });
+  });
+
+  it('shows six players with nobody in a team', async () => {
+    const user = userEvent.setup();
+    const ctx = await newContext();
+    // Individual play has no team names to give, so the fields are not offered.
+    expect(await buildParty(ctx, user, 6, 'Ieder voor zich')).toEqual({
+      players: 6,
+      teamNames: 0,
+    });
+  });
+
+  it('shows eight players in four teams', async () => {
+    const user = userEvent.setup();
+    const ctx = await newContext();
+    expect(await buildParty(ctx, user, 8, '4 teams van 2')).toEqual({ players: 8, teamNames: 4 });
+  });
+
+  it('keeps a name field for every player at the largest size', async () => {
+    const user = userEvent.setup();
+    const ctx = await newContext();
+    await buildParty(ctx, user, 8, '4 teams van 2');
+
+    for (let seat = 1; seat <= 8; seat += 1) {
+      expect(screen.getByLabelText(`Speler ${seat}`)).toBeInTheDocument();
+    }
+  });
+
+  it('stores the player and team names that were typed', async () => {
+    const user = userEvent.setup();
+    const ctx = await newContext();
+    await buildParty(ctx, user, 6, '3 teams van 2');
+
+    await user.type(screen.getByLabelText('Speler 1'), 'Anna');
+    await user.type(screen.getByLabelText('Speler 4'), 'Bram');
+    await user.type(screen.getByLabelText('Naam van team 1'), 'Rood');
+    await user.type(screen.getByLabelText('Naam van team 3'), 'Blauw');
+
+    await user.click(screen.getByRole('button', { name: /Verder/ }));
+    await user.click(await screen.findByRole('button', { name: 'Partij starten' }));
+
+    await waitFor(async () => expect(await ctx.services.games.list()).toHaveLength(1));
+    const [summary] = await ctx.services.games.list();
+    const loaded = await ctx.services.games.load(summary!.id);
+
+    expect(loaded!.game.players.map((player) => player.name)).toEqual([
+      'Anna',
+      'Speler 2',
+      'Speler 3',
+      'Bram',
+      'Speler 5',
+      'Speler 6',
+    ]);
+    expect(loaded!.game.teams.map((team) => team.name)).toEqual(['Rood', 'Team 2', 'Blauw']);
+  });
+
+  it('stores the membership a player was moved into', async () => {
+    const user = userEvent.setup();
+    const ctx = await newContext();
+    await buildParty(ctx, user, 6, '3 teams van 2');
+
+    // Seat 1 starts in team 2; move it to team 1, which swaps someone back.
+    await user.selectOptions(screen.getByLabelText('Team van speler 2'), '0');
+    await waitFor(() => expect(screen.getByLabelText('Team van speler 2')).toHaveValue('0'));
+
+    await user.click(screen.getByRole('button', { name: /Verder/ }));
+    await user.click(await screen.findByRole('button', { name: 'Partij starten' }));
+
+    await waitFor(async () => expect(await ctx.services.games.list()).toHaveLength(1));
+    const [summary] = await ctx.services.games.list();
+    const loaded = await ctx.services.games.load(summary!.id);
+
+    const bySeat = new Map(loaded!.game.players.map((player) => [player.id, player.seat]));
+    const seatsPerTeam = loaded!.game.teams.map((team) =>
+      team.memberIds.map((id) => bySeat.get(id)!).sort((a, b) => a - b),
+    );
+
+    expect(seatsPerTeam[0]).toContain(1);
+    expect(seatsPerTeam.every((seats) => seats.length === 2)).toBe(true);
+    expect(seatsPerTeam.flat().sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5]);
+  });
+});
+
 describe('team names follow the number of teams', () => {
   it('grows and shrinks the list, keeping the names already typed', () => {
     expect(resizeTeamNames(['', ''], 4)).toEqual(['', '', '', '']);

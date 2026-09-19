@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { formatDelta } from '@/application/labels/format';
 import type { ScoreboardVM, TeamStandingVM } from '@/application/viewmodels/scoreboard';
-import { useScoreboard } from '@/hooks/useGameData';
+import { useGameHistory, useScoreboard } from '@/hooks/useGameData';
 import { useServices } from '@/app/servicesContext';
 import { useCommand } from '@/hooks/useCommand';
 import { downloadTextFile } from '@/ui/common/files';
@@ -160,6 +160,80 @@ function WonCard({
   );
 }
 
+/**
+ * How the standings came about, beside the standings themselves.
+ *
+ * Only from `lg`: on a phone the scoreboard already has a "last round" summary
+ * and the full list lives one tap away under Geschiedenis. It renders one
+ * column per team, so three or six teams need nothing said about them here.
+ */
+function Progression({
+  gameId,
+  teams,
+}: {
+  gameId: string;
+  teams: readonly TeamStandingVM[];
+}) {
+  const history = useGameHistory(gameId);
+  if (history.status !== 'ready' || history.data.rows.length === 0) return null;
+
+  const rows = [...history.data.rows].reverse();
+  // The column count comes from the game, so it cannot be a utility class:
+  // Tailwind generates those by scanning the source, not at run time.
+  const columns = { gridTemplateColumns: `2rem repeat(${teams.length}, minmax(0,1fr))` };
+
+  return (
+    <Block className="hidden px-4 py-1.5 lg:block">
+      <div className="flex items-baseline justify-between gap-3 py-2.5">
+        <SectionLabel as="h2">Verloop</SectionLabel>
+        <Link
+          to={`/games/${gameId}/history`}
+          className="-my-3 inline-flex min-h-touch items-center text-note font-semibold text-accent"
+        >
+          Corrigeren
+        </Link>
+      </div>
+
+      <div
+        style={columns}
+        className="grid items-center gap-x-2 border-t border-border py-2 text-micro font-semibold uppercase tracking-label text-muted"
+      >
+        <span>#</span>
+        {teams.map((team, index) => (
+          <span key={team.teamId} className="truncate text-right">
+            <Suit index={index} /> {team.name}
+          </span>
+        ))}
+      </div>
+
+      <ul className="max-h-96 overflow-y-auto">
+        {rows.map((row) => (
+          <li
+            key={row.roundId}
+            style={columns}
+            className="grid items-baseline gap-x-2 border-t border-border py-2"
+          >
+            <Score tight={false} className="text-note text-muted">
+              {row.displayNumber}
+            </Score>
+            {row.teams.map((team) => (
+              <span key={team.teamId} className="text-right">
+                <Score
+                  tight={false}
+                  className={`block text-note ${team.delta < 0 ? 'text-heart' : ''}`}
+                >
+                  {team.deltaText}
+                </Score>
+                <span className="block text-meta tabular text-muted">{team.runningTotalText}</span>
+              </span>
+            ))}
+          </li>
+        ))}
+      </ul>
+    </Block>
+  );
+}
+
 export function ScoreboardRoute() {
   const { gameId } = useParams();
   const board = useScoreboard(gameId);
@@ -192,7 +266,18 @@ export function ScoreboardRoute() {
         }
       />
 
-      <div className="flex flex-1 flex-col gap-3.5 pt-1">
+      {/*
+       * One column on a phone. From `lg` the design gives the progression its
+       * own column, so the standings and how they came about are on screen at
+       * the same time instead of one scroll apart.
+       */}
+      {/*
+       * One column on a phone. From `lg` the design gives the progression its
+       * own column, so the standings and how they came about are on screen at
+       * the same time instead of one scroll apart.
+       */}
+      <div className="flex flex-1 flex-col gap-3.5 pt-1 lg:grid lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-start lg:gap-6">
+        <div className="flex flex-col gap-3.5">
         {data.outcome.kind === 'won' ? (
           <WonCard board={data.outcome} target={data.targetScoreText} />
         ) : null}
@@ -234,39 +319,41 @@ export function ScoreboardRoute() {
           </>
         )}
 
-        {data.roundCount > 0 ? (
-          <Block className="px-4.5 py-3.5">
-            <div className="flex items-baseline justify-between gap-3">
-              <SectionLabel as="h2">Laatste ronde · {data.roundCount}</SectionLabel>
-              <Link
-                to={`/games/${data.gameId}/history`}
-                className="-my-3 inline-flex min-h-touch items-center text-note font-semibold text-accent"
-              >
-                Corrigeren
-              </Link>
-            </div>
-            <div className="mt-1 grid grid-cols-2 gap-3">
-              {data.teams.map((team, index) => (
-                <div
-                  key={team.teamId}
-                  className={`flex items-baseline gap-2 ${index === 1 ? 'justify-end' : ''}`}
-                >
-                  {index === 1 ? null : <Suit index={index} className="text-sm" />}
-                  <Score className="text-2xl">
-                    {formatDelta(team.deltas[lastDeltaIndex] ?? 0)}
-                  </Score>
-                  {index === 1 ? <Suit index={index} className="text-sm" /> : null}
-                </div>
-              ))}
-            </div>
-          </Block>
-        ) : null}
+        </div>
 
-        {exportGame.state === 'failed' || (exportGame.result && !exportGame.result.ok) ? (
-          <ErrorPanel title="Exporteren is niet gelukt.">
-            {exportGame.error?.message ?? 'Deze partij kon niet worden gevonden.'}
-          </ErrorPanel>
-        ) : null}
+        <div className="flex flex-col gap-3.5">
+          {data.roundCount > 0 ? (
+            <Block className="px-4.5 py-3.5 lg:hidden">
+              <div className="flex items-baseline justify-between gap-3">
+                <SectionLabel as="h2">Laatste ronde · {data.roundCount}</SectionLabel>
+                <Link
+                  to={`/games/${data.gameId}/history`}
+                  className="-my-3 inline-flex min-h-touch items-center text-note font-semibold text-accent"
+                >
+                  Corrigeren
+                </Link>
+              </div>
+              <div className="mt-1 grid grid-cols-[repeat(auto-fit,minmax(6rem,1fr))] gap-3">
+                {data.teams.map((team, index) => (
+                  <div key={team.teamId} className="flex items-baseline gap-2">
+                    <Suit index={index} className="text-sm" />
+                    <Score className="text-2xl">
+                      {formatDelta(team.deltas[lastDeltaIndex] ?? 0)}
+                    </Score>
+                  </div>
+                ))}
+              </div>
+            </Block>
+          ) : null}
+
+          <Progression gameId={data.gameId} teams={data.teams} />
+
+          {exportGame.state === 'failed' || (exportGame.result && !exportGame.result.ok) ? (
+            <ErrorPanel title="Exporteren is niet gelukt.">
+              {exportGame.error?.message ?? 'Deze partij kon niet worden gevonden.'}
+            </ErrorPanel>
+          ) : null}
+        </div>
       </div>
 
       <GameNav gameId={data.gameId} />

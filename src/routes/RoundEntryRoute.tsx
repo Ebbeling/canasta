@@ -344,8 +344,26 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
           </ErrorPanel>
         ) : null}
 
+        {/*
+         * From `lg` the design splits this in two: the fields on the left, and
+         * what they add up to pinned on the right. Entering a round then stops
+         * being a scroll down to check the total and back up to correct it.
+         */}
+        <div
+          data-wide
+          className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start lg:gap-6"
+        >
         {team ? (
-          <form className="flex flex-col gap-3" onSubmit={(event) => event.preventDefault()}>
+          // The container is the wrapper, not the form: an element cannot
+          // answer a query about its own width.
+          <div className="@container">
+          <form
+            // Two columns of field groups, but only once there is room for
+            // them beside the overview. The window being wide says nothing
+            // about the space left over here.
+            className="flex flex-col gap-3 @[38rem]:grid @[38rem]:grid-cols-2 @[38rem]:items-start"
+            onSubmit={(event) => event.preventDefault()}
+          >
             {layout.map((group) => (
               <Block key={group.category} className="px-4 py-1.5">
                 <SectionLabel className="block pb-1 pt-2.5">{group.title}</SectionLabel>
@@ -367,10 +385,11 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
               </Block>
             ))}
           </form>
+          </div>
         ) : null}
 
         {preview ? (
-          <>
+          <aside className="flex flex-col gap-3 lg:sticky lg:top-4">
             {teamPreview ? (
               <BreakdownList
                 team={teamPreview}
@@ -387,8 +406,9 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
               warnings={preview.warnings}
               advisories={preview.advisories}
             />
-          </>
+          </aside>
         ) : null}
+        </div>
       </div>
 
       <StickyActions>
