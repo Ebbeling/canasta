@@ -1,8 +1,15 @@
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router';
+import type { Json } from '@/domain/ids';
 import type { ConfigOverride } from '@/rules/schema/ruleSet';
 import type { RuleSetChoice } from '@/application/services/ruleSetService';
-import { buildGameSetup, defaultTeamSeats, type GameSetupVM } from '@/application/viewmodels/setup';
+import {
+  buildGameSetup,
+  partyOverrides,
+  partyShapeOf,
+  validateGameSetup,
+  type GameSetupVM,
+} from '@/application/viewmodels/setup';
 import { useServices } from '@/app/servicesContext';
 import { useRuleSetChoices } from '@/hooks/useGameData';
 import { useCommand } from '@/hooks/useCommand';
@@ -10,18 +17,24 @@ import { useLiveResult } from '@/hooks/useLiveResult';
 import { AppBar } from '@/ui/app/AppBar';
 import { ChevronRight } from '@/ui/common/icons';
 import { Suit } from '@/ui/common/Suit';
+import { SettingsEditor } from '@/ui/rules/SettingsEditor';
+import { PartyEditor } from '@/ui/setup/PartyEditor';
+import { draftForShape, type PartyDraft } from '@/ui/setup/party';
 import {
   Badge,
   Block,
   Button,
   ErrorPanel,
   LoadingState,
+  Muted,
   SectionLabel,
+  SegmentedControl,
   StickyActions,
   Switch,
 } from '@/ui/common/primitives';
 
 type Step = 'ruleset' | 'players' | 'rules';
+type Mode = 'standard' | 'custom';
 
 const STEPS: Step[] = ['ruleset', 'players', 'rules'];
 
@@ -31,28 +44,37 @@ const STEP_TITLES: Record<Step, string> = {
   rules: 'Huisregels',
 };
 
+/** The interface's own ceiling; the engine has none. */
+const MAX_PLAYERS = 8;
+const MIN_PLAYERS = 2;
+
 const TEXT_INPUT =
-  'min-h-12 w-full rounded-tile border-[1.5px] border-border bg-surface px-3.5 text-base ' +
-  'transition-colors outline-none focus:border-accent focus:bg-panel';
+  'mt-1.5 min-h-12 w-full rounded-tile border-[1.5px] border-border bg-surface px-3.5 text-base ' +
+  'outline-none transition-colors focus:border-accent focus:bg-panel';
 
 /**
  * The new-game flow.
  *
- * The deviations entered in the last step are collected as `ConfigOverride[]`
- * and handed to `games.create`, which runs the one configuration pipeline
- * (validate → resolve → validate → freeze). Nothing here writes a rule-set
- * property into a game directly.
+ * Standard and custom games take exactly the same route through the code. A
+ * custom game is not a different kind of game: it is the same base rule set
+ * with a few more `ConfigOverride`s — the party shape among them — handed to
+ * the one configuration pipeline. Nothing downstream can tell the difference,
+ * which is the point.
  */
 export function NewGameRoute() {
   const navigate = useNavigate();
   const services = useServices();
   const choices = useRuleSetChoices();
+  const [params] = useSearchParams();
 
   const [step, setStep] = useState<Step>('ruleset');
+  const [mode, setMode] = useState<Mode>('standard');
   const [chosen, setChosen] = useState<RuleSetChoice | undefined>();
-  const [playerNames, setPlayerNames] = useState<string[]>([]);
-  const [teamNames, setTeamNames] = useState<string[]>([]);
-  const [overrides, setOverrides] = useState<Record<string, number | boolean | string>>({});
+  const [party, setParty] = useState<PartyDraft | undefined>();
+  const [values, setValues] = useState<Record<string, Json>>({});
+  const [gameName, setGameName] = useState('');
+  const [saveAsPreset, setSaveAsPreset] = useState(false);
+  const [presetName, setPresetName] = useState('');
 
   const ruleSet = useLiveResult(
     chosen ? () => services.ruleSets.resolve(chosen.id, chosen.origin) : null,
@@ -65,44 +87,120 @@ export function NewGameRoute() {
   );
 
   const create = useCommand(services.games.create);
+  const createPreset = useCommand(services.ruleSets.createPreset);
+
+  // Arriving from "Gebruiken" on the rule set screen.
+  const preselectId = params.get('ruleSet');
+  const preselectOrigin = params.get('origin');
+  useEffect(() => {
+    if (chosen || choices.status !== 'ready' || !preselectId) return;
+    const match = choices.data.find(
+      (item) => item.id === preselectId && item.origin === preselectOrigin,
+    );
+    if (!match) return;
+    setChosen(match);
+    setParty(undefined);
+    setValues({});
+    setStep('players');
+  }, [choices, preselectId, preselectOrigin, chosen]);
+
+  // The party draft starts from the rule set's own declared shape.
+  useEffect(() => {
+    if (ruleSet.status !== 'ready' || party) return;
+    setParty(draftForShape(partyShapeOf(ruleSet.data)));
+  }, [ruleSet, party]);
 
   function pick(choice: RuleSetChoice) {
     setChosen(choice);
-    setPlayerNames([]);
-    setTeamNames([]);
-    setOverrides({});
+    setParty(undefined);
+    setValues({});
     setStep('players');
   }
 
-  async function start() {
-    if (!chosen || !setup || ruleSet.status !== 'ready') return;
+  const shape = party
+    ? {
+        playerCount: party.playerNames.length,
+        teamCount: party.teamSeats.length,
+        mode: party.mode,
+      }
+    : undefined;
 
-    const seats = defaultTeamSeats(ruleSet.data);
-    const names = setup.playerSlots.map(
-      (slot, index) => playerNames[index]?.trim() || slot.placeholder,
+  /** Party shape first, then everything the settings editor collected. */
+  function collectOverrides(): ConfigOverride[] {
+    // A standard game leaves the shape exactly as the rule set declares it, so
+    // it contributes no overrides at all and the game records none.
+    const shaped = mode === 'custom' && shape ? partyOverrides(shape) : [];
+    const shapedPaths = new Set(shaped.map((entry) => entry.path));
+
+    return [
+      ...shaped,
+      ...Object.entries(values)
+        .filter(([path]) => !shapedPaths.has(path))
+        .map(([path, value]) => ({ path, value }) as ConfigOverride),
+    ];
+  }
+
+  const setupIssues = useMemo(() => {
+    if (ruleSet.status !== 'ready' || !party || !shape) return [];
+
+    // A custom party is judged by the shape it is about to be played with; a
+    // standard one by whatever its rule set declares. Either way the reading of
+    // that configuration happens in the application layer, not here.
+    return validateGameSetup(
+      ruleSet.data,
+      {
+        ruleSetId: ruleSet.data.id,
+        ruleSetOrigin: chosen?.origin ?? 'builtin',
+        playerNames: party.playerNames.map((name, seat) => name.trim() || `Speler ${seat + 1}`),
+        teamNames: party.teamNames,
+        teamSeats: party.teamSeats,
+        overrides: [],
+      },
+      mode === 'custom' ? shape : undefined,
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ruleSet, party, mode, chosen]);
+
+  async function start() {
+    if (!chosen || !party) return;
+
+    const names = party.playerNames.map((name, seat) => name.trim() || `Speler ${seat + 1}`);
+    const teamNames = party.teamSeats.map((seats, index) => {
+      const custom = party.teamNames[index]?.trim();
+      if (custom) return custom;
+      // Individual play: a "team" is simply the player.
+      return party.mode === 'individual'
+        ? (names[seats[0] ?? index] ?? `Speler ${index + 1}`)
+        : `Team ${index + 1}`;
+    });
+
+    const configured = collectOverrides();
+
+    if (saveAsPreset && presetName.trim()) {
+      // Best effort: the game must still start even if saving the preset fails.
+      await createPreset.run({
+        sourceId: chosen.id,
+        sourceOrigin: chosen.origin,
+        name: presetName,
+        overrides: configured,
+      });
+    }
 
     const outcome = await create.run({
       ruleSetId: chosen.id,
       ruleSetOrigin: chosen.origin,
       playerNames: names,
-      teamNames: setup.defaultTeamNames.map((fallback, index) => {
-        const custom = teamNames[index]?.trim();
-        if (custom) return custom;
-        // Individual play: a "team" is simply the player.
-        return setup.hasTeams ? fallback : (names[seats[index]?.[0] ?? index] ?? fallback);
-      }),
-      teamSeats: seats,
-      overrides: Object.entries(overrides).map(
-        ([path, value]) => ({ path, value }) as ConfigOverride,
-      ),
+      teamNames,
+      teamSeats: party.teamSeats,
+      overrides: configured,
+      gameName: gameName.trim() || undefined,
     });
 
     if (outcome?.ok) navigate(`/games/${outcome.game.id}`);
   }
 
   const stepIndex = STEPS.indexOf(step);
-  const seats = setup && ruleSet.status === 'ready' ? defaultTeamSeats(ruleSet.data) : [];
+  const blocked = setupIssues.some((issue) => issue.severity === 'error');
 
   return (
     <div className="flex flex-1 flex-col">
@@ -125,7 +223,9 @@ export function NewGameRoute() {
             ))}
           </div>
           <div>
-            <SectionLabel as="div">Stap {stepIndex + 1} van {STEPS.length}</SectionLabel>
+            <SectionLabel as="div">
+              Stap {stepIndex + 1} van {STEPS.length}
+            </SectionLabel>
             <h2 className="mt-0.5 font-display text-[1.75rem] font-semibold leading-tight tracking-title text-pretty">
               {STEP_TITLES[step]}
             </h2>
@@ -137,7 +237,7 @@ export function NewGameRoute() {
             {create.result.reason === 'validation' ? (
               <ul className="list-disc pl-5">
                 {create.result.issues.map((issue) => (
-                  <li key={issue.code}>{issue.message}</li>
+                  <li key={`${issue.code}-${issue.message}`}>{issue.message}</li>
                 ))}
               </ul>
             ) : (
@@ -148,6 +248,22 @@ export function NewGameRoute() {
 
         {step === 'ruleset' ? (
           <>
+            <SegmentedControl
+              name="spelsoort"
+              label="Soort partij"
+              value={mode}
+              onChange={setMode}
+              options={[
+                { value: 'standard', label: 'Standaard' },
+                { value: 'custom', label: 'Aangepast' },
+              ]}
+            />
+            <Muted>
+              {mode === 'standard'
+                ? 'De regelset bepaalt het aantal spelers en teams.'
+                : 'Je kiest zelf hoeveel spelers meedoen en hoe ze zijn ingedeeld.'}
+            </Muted>
+
             {choices.status === 'loading' ? <LoadingState /> : null}
             {choices.status === 'ready' ? (
               <ul className="flex flex-col gap-2.5">
@@ -158,21 +274,13 @@ export function NewGameRoute() {
                       className="flex w-full items-start gap-3.5 rounded-list border-[1.5px] border-border bg-panel px-4.5 py-4 text-left transition-colors hover:border-accent hover:bg-panel2"
                       onClick={() => pick(choice)}
                     >
-                      {/* A visual anchor only — the counts that matter are in
-                          the summary line the view model composed. */}
                       <span className="flex size-11 shrink-0 items-center justify-center rounded-tile bg-panel2 text-lg">
                         <Suit index={index} />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex flex-wrap items-center gap-2 text-base font-semibold">
                           {choice.name}
-                          {choice.overrideCount > 0 ? (
-                            <Badge tone="accent">
-                              {choice.overrideCount === 1
-                                ? '1 huisregel'
-                                : `${choice.overrideCount} huisregels`}
-                            </Badge>
-                          ) : null}
+                          {choice.locked ? null : <Badge tone="accent">Aangepast</Badge>}
                         </span>
                         <span className="mt-0.5 block text-caption text-muted">
                           {choice.summaryLine}
@@ -187,114 +295,30 @@ export function NewGameRoute() {
                 ))}
               </ul>
             ) : null}
+
+            <Muted className="text-center">
+              <Link to="/rulesets" className="font-semibold text-accent">
+                Regelsets beheren
+              </Link>
+            </Muted>
           </>
         ) : null}
 
-        {step === 'players' && setup ? (
-          <div className="flex flex-col gap-3">
-            {setup.hasTeams ? (
-              setup.defaultTeamNames.map((fallback, teamIndex) => (
-                <Block key={fallback} className="px-4 py-1.5">
-                  <SectionLabel className="flex items-center gap-2 py-2.5">
-                    <Suit index={teamIndex} className="text-sm" />
-                    {fallback}
-                  </SectionLabel>
-
-                  {(seats[teamIndex] ?? []).map((seat) => {
-                    const slot = setup.playerSlots[seat];
-                    if (!slot) return null;
-                    return (
-                      <div
-                        key={slot.seat}
-                        className="flex items-center gap-3 border-t border-border py-2.5"
-                      >
-                        <label
-                          htmlFor={`speler-${slot.seat}`}
-                          className="w-16 shrink-0 text-note text-muted"
-                        >
-                          {slot.label}
-                        </label>
-                        <input
-                          id={`speler-${slot.seat}`}
-                          type="text"
-                          className={TEXT_INPUT}
-                          placeholder={slot.placeholder}
-                          value={playerNames[slot.seat] ?? ''}
-                          onChange={(event) =>
-                            setPlayerNames((names) => {
-                              const next = [...names];
-                              next[slot.seat] = event.target.value;
-                              return next;
-                            })
-                          }
-                        />
-                      </div>
-                    );
-                  })}
-
-                  <div className="flex items-center gap-3 border-t border-border py-2.5">
-                    <label
-                      htmlFor={`team-${teamIndex}`}
-                      className="w-16 shrink-0 text-note text-muted"
-                    >
-                      Naam van {setup.teamNoun.singular} {teamIndex + 1}
-                    </label>
-                    <input
-                      id={`team-${teamIndex}`}
-                      type="text"
-                      className={TEXT_INPUT}
-                      placeholder={fallback}
-                      value={teamNames[teamIndex] ?? ''}
-                      onChange={(event) =>
-                        setTeamNames((names) => {
-                          const next = [...names];
-                          next[teamIndex] = event.target.value;
-                          return next;
-                        })
-                      }
-                    />
-                  </div>
-                </Block>
-              ))
-            ) : (
-              <Block className="px-4 py-1.5">
-                <SectionLabel className="block py-2.5">{setup.teamNoun.plural}</SectionLabel>
-                {setup.playerSlots.map((slot) => (
-                  <div
-                    key={slot.seat}
-                    className="flex items-center gap-3 border-t border-border py-2.5"
-                  >
-                    <label
-                      htmlFor={`speler-${slot.seat}`}
-                      className="w-16 shrink-0 text-note text-muted"
-                    >
-                      {slot.label}
-                    </label>
-                    <input
-                      id={`speler-${slot.seat}`}
-                      type="text"
-                      className={TEXT_INPUT}
-                      placeholder={slot.placeholder}
-                      value={playerNames[slot.seat] ?? ''}
-                      onChange={(event) =>
-                        setPlayerNames((names) => {
-                          const next = [...names];
-                          next[slot.seat] = event.target.value;
-                          return next;
-                        })
-                      }
-                    />
-                  </div>
-                ))}
-              </Block>
-            )}
-
-            <p className="px-2 text-center text-caption leading-snug text-muted text-pretty">
-              {setup.hasTeams
-                ? 'Partners zitten tegenover elkaar. Lege namen worden "Speler n".'
-                : `Deze variant speel je met ${setup.playerSlots.length} ${setup.teamNoun.plural}, zonder teams.`}
-            </p>
-          </div>
+        {step === 'players' && setup && party ? (
+          <>
+            <PartyEditor
+              draft={party}
+              onChange={setParty}
+              minPlayers={mode === 'custom' ? MIN_PLAYERS : setup.playerSlots.length}
+              maxPlayers={mode === 'custom' ? MAX_PLAYERS : setup.playerSlots.length}
+              issues={setupIssues}
+            />
+            {party.mode === 'individual' ? (
+              <p className="px-2 text-center text-caption leading-snug text-muted text-pretty">
+                Deze variant speel je met {party.playerNames.length} spelers, zonder teams.
+              </p>
+            ) : null}
+          </>
         ) : null}
 
         {step === 'rules' && setup ? (
@@ -304,66 +328,64 @@ export function NewGameRoute() {
                 <p className="truncate text-body font-semibold">{setup.ruleSetName}</p>
                 <p className="truncate text-caption text-muted">{setup.summaryLine}</p>
               </div>
-              <span className="shrink-0 text-caption font-semibold text-accent">Standaard</span>
+              <span className="shrink-0 text-caption font-semibold text-accent">
+                {mode === 'custom' ? 'Aangepast' : 'Standaard'}
+              </span>
             </div>
 
-            {setup.editableSections.map((section) => (
-              <Block key={section.category} className="px-4 py-1.5">
-                <SectionLabel className="block pb-1 pt-2.5">{section.title}</SectionLabel>
-                {section.values
-                  .filter((value) => value.type === 'number' || value.type === 'boolean')
-                  .map((value) => (
-                    <div
-                      key={value.key}
-                      className="flex min-h-touch items-center justify-between gap-3 border-t border-border py-3"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <label
-                          htmlFor={`regel-${value.key}`}
-                          className="text-body font-medium"
-                        >
-                          {value.label}
-                        </label>
-                        {value.help ? (
-                          <p className="mt-0.5 text-caption leading-snug text-muted text-pretty">
-                            {value.help}
-                          </p>
-                        ) : null}
-                      </div>
+            <Block className="px-4 py-3.5">
+              <label htmlFor="partij-naam" className="text-body font-medium">
+                Naam van de partij
+              </label>
+              <input
+                id="partij-naam"
+                type="text"
+                className={TEXT_INPUT}
+                placeholder="Bijvoorbeeld: donderdagavond"
+                value={gameName}
+                onChange={(event) => setGameName(event.target.value)}
+              />
+            </Block>
 
-                      {value.type === 'boolean' ? (
-                        <Switch
-                          id={`regel-${value.key}`}
-                          checked={
-                            typeof overrides[value.key] === 'boolean'
-                              ? (overrides[value.key] as boolean)
-                              : value.valueText === 'Aan'
-                          }
-                          onChange={(checked) =>
-                            setOverrides((current) => ({ ...current, [value.key]: checked }))
-                          }
-                        />
-                      ) : (
-                        <div className="flex min-h-12 w-24 shrink-0 items-center rounded-control border border-border bg-panel2 px-3.5 transition-colors focus-within:border-accent focus-within:bg-panel">
-                          <input
-                            id={`regel-${value.key}`}
-                            type="number"
-                            inputMode="numeric"
-                            className="w-full min-w-0 bg-transparent text-right font-display text-xl font-semibold tabular outline-none"
-                            defaultValue={value.valueText.replace(/\./g, '')}
-                            onChange={(event) =>
-                              setOverrides((current) => ({
-                                ...current,
-                                [value.key]: event.target.valueAsNumber,
-                              }))
-                            }
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-              </Block>
-            ))}
+            <SettingsEditor
+              sections={setup.editableSections}
+              values={values}
+              changedPaths={new Set(Object.keys(values))}
+              onChange={(path, value) => setValues((current) => ({ ...current, [path]: value }))}
+            />
+
+            <Block className="px-4 py-1.5">
+              <div className="flex min-h-touch items-center justify-between gap-3 py-3">
+                <label htmlFor="bewaar-regelset" className="min-w-0 flex-1 text-body font-medium">
+                  Bewaren als regelset
+                  <span className="mt-0.5 block text-caption font-normal text-muted text-pretty">
+                    Zo kun je deze indeling en huisregels later opnieuw gebruiken.
+                  </span>
+                </label>
+                <Switch
+                  id="bewaar-regelset"
+                  checked={saveAsPreset}
+                  onChange={(next) => {
+                    setSaveAsPreset(next);
+                    if (next && !presetName) setPresetName(`Mijn ${setup.ruleSetName}`);
+                  }}
+                />
+              </div>
+              {saveAsPreset ? (
+                <div className="border-t border-border py-3">
+                  <label htmlFor="nieuwe-regelset-naam" className="text-body font-medium">
+                    Naam van de regelset
+                  </label>
+                  <input
+                    id="nieuwe-regelset-naam"
+                    type="text"
+                    className={TEXT_INPUT}
+                    value={presetName}
+                    onChange={(event) => setPresetName(event.target.value)}
+                  />
+                </div>
+              ) : null}
+            </Block>
           </div>
         ) : null}
       </div>
@@ -383,7 +405,13 @@ export function NewGameRoute() {
               Terug
             </Button>
             {step === 'players' ? (
-              <Button variant="primary" size="lg" block onClick={() => setStep('rules')}>
+              <Button
+                variant="primary"
+                size="lg"
+                block
+                disabled={blocked}
+                onClick={() => setStep('rules')}
+              >
                 Verder
                 <ChevronRight size={18} />
               </Button>

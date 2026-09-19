@@ -1,4 +1,4 @@
-import type { ConfigPath, RuleSetId } from '@/domain/ids';
+import type { ConfigPath, Json, RuleSetId } from '@/domain/ids';
 import type { InitialMeldThreshold, RuleSetConfiguration } from '@/rules/schema/configuration';
 import type {
   RuleEffect,
@@ -60,6 +60,20 @@ export interface RuleValueVM {
   help?: string;
   type: SettingType;
   valueText: string;
+  /**
+   * The value as stored, next to the formatted one.
+   *
+   * The rules screen renders `valueText`; the editor needs the raw value to
+   * seed a control and hand it back unchanged. Deriving it from `valueText`
+   * would mean parsing "5.000" back into a number in React, which is exactly
+   * the rule knowledge the UI must not hold.
+   */
+  value: Json;
+  /** Carried from the setting so an editor can offer and bound the choices. */
+  options?: readonly { value: string; label: string }[];
+  min?: number;
+  max?: number;
+  step?: number;
   unit?: string;
   editable: boolean;
   effect: RuleEffect;
@@ -227,6 +241,11 @@ export function describeRuleSet(
       help: setting.help,
       type: setting.type,
       valueText: formatValue(setting, raw),
+      value: raw as Json,
+      options: setting.options,
+      min: setting.min,
+      max: setting.max,
+      step: setting.step,
       unit: setting.unit,
       editable: setting.editable,
       effect: setting.effect,

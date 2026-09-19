@@ -8,6 +8,8 @@ import { RoundEntryRoute } from '@/routes/RoundEntryRoute';
 import { HistoryRoute } from '@/routes/HistoryRoute';
 import { GameRulesRoute } from '@/routes/GameRulesRoute';
 import { SettingsRoute } from '@/routes/SettingsRoute';
+import { RuleSetsRoute } from '@/routes/RuleSetsRoute';
+import { RuleSetEditorRoute } from '@/routes/RuleSetEditorRoute';
 
 /**
  * A data router with no loaders.
@@ -40,6 +42,8 @@ export const routes = [
         ],
       },
       { path: 'settings', element: <SettingsRoute /> },
+      { path: 'rulesets', element: <RuleSetsRoute /> },
+      { path: 'rulesets/:presetId', element: <RuleSetEditorRoute /> },
       { path: '*', element: <NotFoundRoute /> },
     ],
   },

@@ -12,6 +12,7 @@ import { ConfirmDialog } from '@/ui/common/ConfirmDialog';
 import {
   Block,
   Button,
+  LinkButton,
   Muted,
   Row,
   SectionLabel,
@@ -86,6 +87,18 @@ export function SettingsRoute() {
               onChange={(next) => void chooseTheme(next)}
             />
           </div>
+        </Group>
+
+        <Group title="Spel">
+          <Row>
+            <RowText
+              label="Regelsets"
+              sub="Kopieer een ingebouwde regelset en leg je eigen spelers, teams en huisregels vast."
+            />
+            <LinkButton to="/rulesets" size="sm">
+              Beheren
+            </LinkButton>
+          </Row>
         </Group>
 
         <Group title="Opslag">

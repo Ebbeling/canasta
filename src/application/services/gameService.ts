@@ -81,17 +81,21 @@ export function createGameService(deps: GameServiceDeps): GameService {
       );
       if (!base) return { ok: false, reason: 'unknownRuleSet' };
 
-      const setupIssues = validateGameSetup(base, input);
-      if (hasErrors(setupIssues)) {
-        return { ok: false, reason: 'validation', issues: setupIssues };
-      }
-
       // The one configuration pipeline: nothing writes rule-set properties into
-      // a game directly. The later preset editor uses this same call.
+      // a game directly. The preset editor uses this same call.
       const overrides = meaningfulOverrides(base, input.overrides);
       const effective = buildEffectiveRuleSet(base, overrides);
       if (!effective.ok || !effective.ruleSet) {
-        return { ok: false, reason: 'validation', issues: [...setupIssues, ...effective.issues] };
+        return { ok: false, reason: 'validation', issues: effective.issues };
+      }
+
+      // The people are checked against the rule set the game will actually run
+      // with, not the one it started from. A custom party arrives as overrides
+      // on `players` and `teams`, so validating against the base would reject
+      // every game that is not the base's own shape.
+      const setupIssues = validateGameSetup(effective.ruleSet, input);
+      if (hasErrors(setupIssues)) {
+        return { ok: false, reason: 'validation', issues: setupIssues };
       }
 
       const { players, teams } = buildPlayersAndTeams(input);

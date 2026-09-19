@@ -281,7 +281,13 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
         <div
           role="tablist"
           aria-label="Team kiezen"
-          className="grid grid-cols-2 gap-1.5 rounded-btn bg-panel2 p-1"
+          /*
+           * A scrolling row rather than a grid. Two teams fill it exactly, the
+           * way the design draws it; three or more keep the same tile size and
+           * scroll, which beats reflowing into ragged rows that move as the
+           * user switches. A game can have as many teams as its rule set says.
+           */
+          className="flex snap-x gap-1.5 overflow-x-auto rounded-btn bg-panel2 p-1"
         >
           {game.teams.map((item, index) => {
             const itemPreview = preview?.teams.find((entry) => entry.teamId === item.id);
@@ -296,7 +302,7 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
                 role="tab"
                 type="button"
                 aria-selected={selected}
-                className={`flex min-h-14 items-center justify-between gap-2 rounded-tile px-3 py-1.5 text-left transition-colors ${
+                className={`flex min-h-14 min-w-[calc(50%-0.1875rem)] flex-1 shrink-0 snap-start items-center justify-between gap-2 rounded-tile px-3 py-1.5 text-left transition-colors ${
                   selected
                     ? 'border-[1.5px] border-accent bg-panel shadow-soft'
                     : 'border-[1.5px] border-transparent text-muted'

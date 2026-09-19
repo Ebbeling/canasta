@@ -1,4 +1,4 @@
-import type { ValidationIssue } from '@/domain/result';
+import { hasErrors, type ValidationIssue } from '@/domain/result';
 import { emptyTeamRoundInput } from '@/domain/round';
 import type { RuleSetConfiguration } from '@/rules/schema/configuration';
 import type { RuleSet } from '@/rules/schema/ruleSet';
@@ -42,7 +42,94 @@ export function validateConfiguration(
     }
   }
 
+  issues.push(...partyStructure(configuration));
   issues.push(...capabilityConsistency(ruleSet, configuration));
+  return issues;
+}
+
+/**
+ * The party shape: how many people play, and how they are grouped.
+ *
+ * `players.default`, `teams.count` and `teams.teamSize` are three numbers that
+ * describe one thing, so they can disagree. A custom rule set that says six
+ * players in two teams of two would deal a game nobody can play, and nothing
+ * downstream would notice: the score engine loops over whatever teams the game
+ * happens to carry and would simply score four of the six.
+ *
+ * Checked here rather than in the editor, so every route into a rule set — the
+ * preset editor, game-level house rules, an imported snapshot — gets the same
+ * answer from the same place.
+ */
+function partyStructure(configuration: RuleSetConfiguration): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const { players, teams } = configuration;
+
+  if (!Number.isInteger(players.default) || players.default < 1) {
+    issues.push({
+      code: 'party.playerCount',
+      severity: 'error',
+      message: 'Een partij heeft minstens één speler nodig.',
+      paths: ['players.default'],
+    });
+  }
+
+  if (players.min > players.max) {
+    issues.push({
+      code: 'party.playerRange',
+      severity: 'error',
+      message: `Het minimum aantal spelers (${players.min}) ligt boven het maximum (${players.max}).`,
+      paths: ['players.min', 'players.max'],
+    });
+  }
+
+  if (players.default < players.min || players.default > players.max) {
+    issues.push({
+      code: 'party.playerDefault',
+      severity: 'error',
+      message: `Deze regelset speelt met ${players.default} spelers, maar staat er ${players.min} tot ${players.max} toe.`,
+      paths: ['players.default'],
+    });
+  }
+
+  if (!Number.isInteger(teams.count) || teams.count < 1) {
+    issues.push({
+      code: 'party.teamCount',
+      severity: 'error',
+      message: 'Een partij heeft minstens één team nodig.',
+      paths: ['teams.count'],
+    });
+  }
+
+  if (!Number.isInteger(teams.teamSize) || teams.teamSize < 1) {
+    issues.push({
+      code: 'party.teamSize',
+      severity: 'error',
+      message: 'Een team heeft minstens één speler nodig.',
+      paths: ['teams.teamSize'],
+    });
+  }
+
+  if (teams.mode === 'individual' && teams.teamSize !== 1) {
+    issues.push({
+      code: 'party.individualTeamSize',
+      severity: 'error',
+      message: 'Bij individueel spel telt elk team precies één speler.',
+      paths: ['teams.mode', 'teams.teamSize'],
+    });
+  }
+
+  // Only worth saying once the three numbers are individually sane.
+  if (!hasErrors(issues) && teams.count * teams.teamSize !== players.default) {
+    issues.push({
+      code: 'party.mismatch',
+      severity: 'error',
+      message: `${teams.count} ${teams.count === 1 ? 'team' : 'teams'} van ${teams.teamSize} ${
+        teams.teamSize === 1 ? 'speler' : 'spelers'
+      } is ${teams.count * teams.teamSize} spelers, maar deze regelset speelt met ${players.default}.`,
+      paths: ['players.default', 'teams.count', 'teams.teamSize'],
+    });
+  }
+
   return issues;
 }
 

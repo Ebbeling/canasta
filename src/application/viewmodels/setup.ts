@@ -44,7 +44,68 @@ export interface GameSetupDraft {
   gameName?: string;
 }
 
-const TEAM_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
+/**
+ * How many people play and how they are grouped.
+ *
+ * Three configuration values describe one decision, so they are chosen together
+ * and written together. Everything downstream — the wizard, the preset editor,
+ * the score engine — reads them back off the rule set as it always has; this
+ * type only exists so the three cannot be set to disagree.
+ */
+export interface PartyShape {
+  playerCount: number;
+  teamCount: number;
+  mode: 'partnership' | 'individual';
+}
+
+/** The team size a shape implies. Always exact: a layout is only offered when it divides. */
+export function teamSizeFor(shape: PartyShape): number {
+  return shape.playerCount / shape.teamCount;
+}
+
+/**
+ * Every way a given number of players can be grouped, largest teams first.
+ *
+ * Only exact divisions are offered, and never a single team — a game needs
+ * someone to play against. A prime number of players therefore offers only
+ * individual play, which is the honest answer rather than a silent remainder.
+ */
+export function teamLayoutsFor(playerCount: number): PartyShape[] {
+  const layouts: PartyShape[] = [];
+
+  for (let teamCount = 2; teamCount <= playerCount; teamCount += 1) {
+    if (playerCount % teamCount !== 0) continue;
+    const size = playerCount / teamCount;
+    layouts.push({
+      playerCount,
+      teamCount,
+      mode: size === 1 ? 'individual' : 'partnership',
+    });
+  }
+
+  return layouts;
+}
+
+/** Turns a chosen shape into overrides for the one configuration pipeline. */
+export function partyOverrides(shape: PartyShape): ConfigOverride[] {
+  const size = teamSizeFor(shape);
+  return [
+    { path: 'players.min', value: shape.playerCount },
+    { path: 'players.max', value: shape.playerCount },
+    { path: 'players.default', value: shape.playerCount },
+    { path: 'teams.mode', value: shape.mode },
+    { path: 'teams.count', value: shape.teamCount },
+    { path: 'teams.teamSize', value: size },
+  ];
+}
+
+/** The shape a rule set currently describes. */
+export function partyShapeOf(ruleSet: RuleSet): PartyShape {
+  const { players, teams } = ruleSet.configuration;
+  return { playerCount: players.default, teamCount: teams.count, mode: teams.mode };
+}
+
+const TEAM_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
 export function buildGameSetup(ruleSet: RuleSet): GameSetupVM {
   const { players, teams } = ruleSet.configuration;
@@ -80,6 +141,44 @@ export function buildGameSetup(ruleSet: RuleSet): GameSetupVM {
   };
 }
 
+/**
+ * Moves a player into another team, keeping the teams the same size.
+ *
+ * Teams in a rule set have one declared size, so a plain move would always
+ * leave one team short and another over. When both teams are already at size,
+ * this swaps instead: the player joins the target and someone from the target
+ * takes their place. Every intermediate state stays valid, so the user is never
+ * shown an error for a move the interface invited them to make.
+ *
+ * Pure, and returns a fresh structure — the caller's array is untouched.
+ */
+export function assignSeat(
+  teamSeats: readonly (readonly number[])[],
+  seat: number,
+  toTeamIndex: number,
+): number[][] {
+  const next = teamSeats.map((seats) => [...seats]);
+  const from = next.findIndex((seats) => seats.includes(seat));
+  const target = next[toTeamIndex];
+
+  if (from === -1 || target === undefined || from === toTeamIndex) return next;
+
+  const source = next[from]!;
+  source.splice(source.indexOf(seat), 1);
+
+  // Swap only when the target was full and the source has room to take someone
+  // back; otherwise this is a plain move into a team that had space.
+  if (target.length >= source.length + 1) {
+    const displaced = target.shift();
+    if (displaced !== undefined) source.push(displaced);
+  }
+
+  target.push(seat);
+  source.sort((a, b) => a - b);
+  target.sort((a, b) => a - b);
+  return next;
+}
+
 /** Default seat assignment: partners sit opposite each other. */
 export function defaultTeamSeats(ruleSet: RuleSet): number[][] {
   const { teams, players } = ruleSet.configuration;
@@ -92,10 +191,26 @@ export function defaultTeamSeats(ruleSet: RuleSet): number[][] {
   return seats;
 }
 
-/** Checks the people, not the rules — the rules are checked by the pipeline. */
-export function validateGameSetup(ruleSet: RuleSet, draft: GameSetupDraft): ValidationIssue[] {
+/**
+ * Checks the people, not the rules — the rules are checked by the pipeline.
+ *
+ * `shape` is for a custom game, which is judged against the party it is about
+ * to be played with rather than the one its base rule set declares. Passing it
+ * here rather than having the caller assemble a modified rule set keeps the
+ * configuration out of the interface entirely.
+ */
+export function validateGameSetup(
+  ruleSet: RuleSet,
+  draft: GameSetupDraft,
+  shape?: PartyShape,
+): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  const { players, teams } = ruleSet.configuration;
+  const { players, teams } = shape
+    ? {
+        players: { default: shape.playerCount },
+        teams: { mode: shape.mode, count: shape.teamCount, teamSize: teamSizeFor(shape) },
+      }
+    : ruleSet.configuration;
 
   if (draft.playerNames.length !== players.default) {
     issues.push({
@@ -154,5 +269,43 @@ export function validateGameSetup(ruleSet: RuleSet, draft: GameSetupDraft): Vali
     });
   }
 
+  // A seat that names nobody would silently produce a team with fewer members
+  // than it claims, because the game service drops ids it cannot resolve.
+  const unknown = assigned.filter(
+    (seat) => !Number.isInteger(seat) || seat < 0 || seat >= draft.playerNames.length,
+  );
+  if (unknown.length > 0) {
+    issues.push({
+      code: 'setup.unknownSeat',
+      severity: 'error',
+      message: 'Een team verwijst naar een speler die niet bestaat.',
+    });
+  }
+
+  const seated = new Set(assigned);
+  const unseated = draft.playerNames
+    .map((_name, seat) => seat)
+    .filter((seat) => !seated.has(seat));
+  if (unseated.length > 0) {
+    const names = unseated.map((seat) => draft.playerNames[seat]?.trim() || `Speler ${seat + 1}`);
+    issues.push({
+      code: 'setup.unassignedPlayer',
+      severity: 'error',
+      message: `${names.join(', ')} ${names.length === 1 ? 'is' : 'zijn'} nog niet ingedeeld.`,
+    });
+  }
+
+  draft.teamSeats.forEach((seats, index) => {
+    if (seats.length === 0) {
+      issues.push({
+        code: 'setup.emptyTeam',
+        severity: 'error',
+        message: `${draft.teamNames[index]?.trim() || `Team ${index + 1}`} heeft nog geen spelers.`,
+      });
+    }
+  });
+
+  // Team names are deliberately not checked: an empty one is allowed, and the
+  // game service falls back to "Team n".
   return issues;
 }

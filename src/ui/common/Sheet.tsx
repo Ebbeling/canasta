@@ -71,13 +71,20 @@ export function Sheet({
     [onClose],
   );
 
+  /**
+   * Opening and closing: focus, scroll lock, and giving focus back.
+   *
+   * Deliberately keyed on `open` alone. Folding the key handler in here would
+   * re-run it on every render — `onClose` is usually an inline arrow — and each
+   * run moves focus back to the panel, which makes it impossible to type into
+   * anything the sheet contains.
+   */
   useEffect(() => {
     if (!open) return;
 
     restoreTo.current = document.activeElement as HTMLElement | null;
     const { overflow } = document.body.style;
     document.body.style.overflow = 'hidden';
-    document.addEventListener('keydown', handleKey, true);
 
     // Focus the sheet itself rather than its first control: the heading is read
     // first, so the user hears what opened before what they can do about it.
@@ -85,13 +92,17 @@ export function Sheet({
     (initialFocusRef?.current ?? panel.current)?.focus();
 
     return () => {
-      document.removeEventListener('keydown', handleKey, true);
       document.body.style.overflow = overflow;
       restoreTo.current?.focus?.();
     };
-    // `initialFocusRef` is a ref object, so its identity is stable and listing
-    // it here does not re-run the effect on every render.
-  }, [open, handleKey, initialFocusRef]);
+    // `initialFocusRef` is a ref object, so its identity is stable.
+  }, [open, initialFocusRef]);
+
+  useEffect(() => {
+    if (!open) return;
+    document.addEventListener('keydown', handleKey, true);
+    return () => document.removeEventListener('keydown', handleKey, true);
+  }, [open, handleKey]);
 
   if (!open) return null;
 
