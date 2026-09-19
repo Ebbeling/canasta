@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import type { GameSummary } from '@/application/ports';
 import { useGameList } from '@/hooks/useGameData';
 import { AppBar } from '@/ui/app/AppBar';
+import { PageBody } from '@/ui/app/Page';
 import { Plus } from '@/ui/common/icons';
 import {
   Block,
@@ -54,7 +55,8 @@ export function GameListRoute() {
   const shown = all.filter(MATCHES[filter]);
 
   return (
-    <div className="flex flex-1 flex-col pb-6">
+    <PageBody>
+      <div className="flex flex-1 flex-col pb-6">
       <AppBar
         title="Partijen"
         back="/"
@@ -104,6 +106,7 @@ export function GameListRoute() {
           ) : null}
         </div>
       ) : null}
-    </div>
+      </div>
+    </PageBody>
   );
 }

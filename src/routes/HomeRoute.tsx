@@ -13,6 +13,7 @@ import {
   Score,
   SectionLabel,
 } from '@/ui/common/primitives';
+import { PageBody } from '@/ui/app/Page';
 import { GameSummaryRow } from './GameSummaryRow';
 
 /** The wordmark, with the four suits as the app's only decoration. */
@@ -105,7 +106,8 @@ export function HomeRoute() {
   const isEmpty = recent.status === 'ready' && recent.data.length === 0;
 
   return (
-    <div className="flex flex-1 flex-col gap-5.5 pb-6">
+    <PageBody>
+      <div className="flex flex-1 flex-col gap-5.5 pb-6">
       <Masthead />
 
       {isEmpty ? (
@@ -183,6 +185,7 @@ export function HomeRoute() {
           </Block>
         </section>
       ) : null}
-    </div>
+      </div>
+    </PageBody>
   );
 }

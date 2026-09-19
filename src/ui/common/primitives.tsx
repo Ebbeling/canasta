@@ -474,9 +474,13 @@ export function StickyActions({
 }) {
   return (
     <div
-      className={`sticky bottom-0 z-20 -mx-4 mt-4 flex items-center gap-2.5 border-t border-border bg-panel px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] ${className}`}
+      className={`sticky bottom-0 z-20 border-t border-border bg-panel px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] sm:px-6 md:px-12 md:pb-4.5 md:pt-3.5 ${className}`}
     >
-      {children}
+      {/* Aligned on the same column as the content above it, so the actions sit
+          under the last field rather than against the edge of the window. */}
+      <div className="mx-auto flex w-full max-w-page items-center gap-2.5 md:max-w-wide md:justify-end">
+        {children}
+      </div>
     </div>
   );
 }

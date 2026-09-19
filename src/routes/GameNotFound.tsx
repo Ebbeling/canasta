@@ -1,8 +1,10 @@
+import { PageBody } from '@/ui/app/Page';
 import { EmptyState, LinkButton } from '@/ui/common/primitives';
 
 export function GameNotFound() {
   return (
-    <div className="py-6">
+    <PageBody>
+      <div className="py-6">
       <EmptyState
         title="Deze partij bestaat niet meer."
         description="Mogelijk is hij verwijderd op dit apparaat."
@@ -12,6 +14,7 @@ export function GameNotFound() {
           </LinkButton>
         }
       />
-    </div>
+      </div>
+    </PageBody>
   );
 }

@@ -1,6 +1,7 @@
 import { useParams } from 'react-router';
 import { useGameRules } from '@/hooks/useGameData';
 import { AppBar } from '@/ui/app/AppBar';
+import { PageBody } from '@/ui/app/Page';
 import { GameNav } from '@/ui/app/GameNav';
 import { LoadingState } from '@/ui/common/primitives';
 import { RuleSetView } from '@/ui/rules/RuleSetView';
@@ -21,7 +22,8 @@ export function GameRulesRoute() {
   if (rules.status === 'missing') return <GameNotFound />;
 
   return (
-    <div className="flex flex-1 flex-col">
+    <PageBody>
+      <div className="flex flex-1 flex-col">
       <AppBar
         title="Spelregels"
         subtitle="Vastgelegd bij de start van deze partij"
@@ -33,6 +35,7 @@ export function GameRulesRoute() {
       </div>
 
       <GameNav gameId={gameId ?? ''} />
-    </div>
+      </div>
+    </PageBody>
   );
 }

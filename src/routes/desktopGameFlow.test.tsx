@@ -5,6 +5,8 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { classic } from '@/rules/builtin';
 import { partyOverrides } from '@/application/viewmodels/setup';
+import { buildFieldLayout } from '@/application/viewmodels/roundForm';
+import { blankInput } from '@/application/fields/access';
 import type { Services } from '@/application/services';
 import { createTestContext, renderAt, type TestContext } from '@/test/renderRoute';
 
@@ -50,6 +52,23 @@ async function seedGame(services: Services, teamCount = 2) {
   });
   if (!outcome.ok) throw new Error('kon geen partij maken');
   return outcome.game;
+}
+
+async function seedRound(
+  services: Services,
+  gameId: string,
+  teams: { id: string }[],
+  pointsPerTeam: number[],
+) {
+  const fields = buildFieldLayout(classic).flatMap((group) => group.fields);
+  await services.rounds.saveNew({
+    gameId,
+    inputs: teams.map((team, index) => ({
+      ...blankInput(team.id, fields),
+      cardPoints: pointsPerTeam[index] ?? 0,
+      opened: true,
+    })),
+  });
 }
 
 const IN_GAME = [
@@ -149,7 +168,7 @@ describe('ronde invoeren — desktop layout', () => {
     // has it; the other in the sticky bar, which is hidden from `md`.
     expect(topBar.contains(saves[0]!)).toBe(true);
     expect(topBar.contains(saves[1]!)).toBe(false);
-    expect(saves[1]!.parentElement?.className).toContain('md:hidden');
+    expect(saves[1]!.closest('.sticky')?.className).toContain('md:hidden');
   });
 });
 
@@ -163,7 +182,13 @@ describe('ronde invoeren — every team, whatever the number of them', () => {
       const overview = within(
         await screen.findByRole('complementary', { name: 'Overzicht van deze ronde' }),
       );
-      expect(overview.getAllByRole('heading', { name: /^Deze ronde ·/ })).toHaveLength(teamCount);
+      // Every team gets its own line in the one overview card, and each line
+      // is the way back into that team.
+      const names = ['Rood', 'Groen', 'Blauw', 'Geel', 'Paars', 'Grijs'].slice(0, teamCount);
+      for (const name of names) {
+        expect(overview.getByRole('button', { name: new RegExp(name) })).toBeInTheDocument();
+      }
+      expect(overview.getAllByRole('button')).toHaveLength(teamCount);
 
       // And one tab per team, so every one of them can be reached.
       const tabs = within(screen.getByRole('tablist', { name: 'Team kiezen' })).getAllByRole('tab');
@@ -182,9 +207,114 @@ describe('ronde invoeren — every team, whatever the number of them', () => {
     ).getAllByRole('tab');
     expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
 
-    await user.click(screen.getByRole('button', { name: 'Wissel naar Blauw' }));
+    const overview = within(
+      screen.getByRole('complementary', { name: 'Overzicht van deze ronde' }),
+    );
+    await user.click(overview.getByRole('button', { name: /Blauw/ }));
 
     expect(tabs[2]).toHaveAttribute('aria-selected', 'true');
     expect(tabs[0]).toHaveAttribute('aria-selected', 'false');
+  });
+});
+
+describe('the shell leaves the width to the screen', () => {
+  it('gives `main` no width of its own, so a bar can span it', async () => {
+    const ctx = await newContext();
+    const game = await seedGame(ctx.services);
+    renderAt(ctx, `/games/${game.id}/round`);
+
+    // Wait for the round to be on screen: closing the database under a live
+    // query that is still in flight is what makes a test flap.
+    await screen.findByRole('tablist', { name: 'Team kiezen' });
+
+    const main = screen.getByRole('main');
+    expect(main.className).not.toMatch(/max-w-/);
+    expect(main.className).not.toContain('mx-auto');
+  });
+
+  it('puts the bar over a round outside the reading column', async () => {
+    const ctx = await newContext();
+    const game = await seedGame(ctx.services);
+    renderAt(ctx, `/games/${game.id}/round`);
+
+    const tablist = await screen.findByRole('tablist', { name: 'Team kiezen' });
+    const bar = tablist.closest('.sticky')!;
+    const form = screen.getByRole('main').querySelector('form')!;
+
+    // The bar spans the whole width beside the rail; only what it holds is
+    // centred on the same column as the fields underneath.
+    expect(bar.className).not.toMatch(/max-w-/);
+    expect(bar.contains(form)).toBe(false);
+    expect(bar.firstElementChild?.className).toContain('max-w-wide');
+  });
+
+  it('gives the scoreboard the reading column', async () => {
+    const ctx = await newContext();
+    const game = await seedGame(ctx.services);
+    renderAt(ctx, `/games/${game.id}`);
+
+    await screen.findByRole('heading', { level: 1 });
+    const column = screen.getByRole('main').querySelector('[class*="max-w-"]')!;
+    expect(column.className).toContain('max-w-column');
+  });
+
+  it('gives the history table the working column', async () => {
+    const ctx = await newContext();
+    const game = await seedGame(ctx.services);
+    renderAt(ctx, `/games/${game.id}/history`);
+
+    await screen.findByRole('heading', { level: 1 });
+    const column = screen.getByRole('main').querySelector('[class*="max-w-"]')!;
+    expect(column.className).toContain('max-w-wide');
+  });
+});
+
+describe('the scoreboard follows the number of teams', () => {
+  it('sets two teams against each other, with no ranking', async () => {
+    const ctx = await newContext();
+    const game = await seedGame(ctx.services, 2);
+    renderAt(ctx, `/games/${game.id}`);
+
+    const main = within(await screen.findByRole('main'));
+    expect(await main.findByText('Rood')).toBeInTheDocument();
+    expect(main.queryByText('Voor · +0')).not.toBeInTheDocument();
+  });
+
+  it('becomes a standings table from three, leader first', async () => {
+    const ctx = await newContext();
+    const game = await seedGame(ctx.services, 3);
+    await seedRound(ctx.services, game.id, game.teams, [100, 400, 250]);
+    renderAt(ctx, `/games/${game.id}`);
+
+    const main = within(await screen.findByRole('main'));
+    await main.findByText('Groen');
+
+    // Sorted by position: Groen leads on 400, Blauw second, Rood last.
+    const names = main
+      .getAllByText(/^(Rood|Groen|Blauw)$/)
+      .map((node) => node.textContent);
+    expect(names.slice(0, 3)).toEqual(['Groen', 'Blauw', 'Rood']);
+
+    // And every team below the leader carries its gap to the leader.
+    expect(main.getByText('−150')).toBeInTheDocument();
+    expect(main.getByText('−300')).toBeInTheDocument();
+  });
+});
+
+describe('geschiedenis shows the standings beside the rounds', () => {
+  it('ranks every team next to the table', async () => {
+    const ctx = await newContext();
+    const game = await seedGame(ctx.services, 3);
+    await seedRound(ctx.services, game.id, game.teams, [100, 400, 250]);
+    renderAt(ctx, `/games/${game.id}/history`);
+
+    const main = within(await screen.findByRole('main'));
+    expect(await main.findByRole('heading', { name: 'Stand na ronde 1' })).toBeInTheDocument();
+    expect(main.getByRole('heading', { name: 'Alle rondes · 1' })).toBeInTheDocument();
+
+    // One rank per team, 1..3.
+    for (const rank of ['1', '2', '3']) {
+      expect(main.getAllByText(rank).length).toBeGreaterThan(0);
+    }
   });
 });

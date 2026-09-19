@@ -118,9 +118,24 @@
   --spacing-touch: 2.75rem;
   --spacing-touch-lg: 3.5rem;
   --spacing-action: 3.75rem;
-  /* The design is drawn at 390px; this is the column it lives in. */
+  /*
+   * The three widths the design works in, and the reason there is not one
+   * `max-width` for everything:
+   *
+   *  - `page`   the phone column the design is drawn in, kept on a small
+   *             tablet so a 600px window does not stretch a 390px layout.
+   *  - `column` the desktop reading column: the scoreboard, home, the
+   *             rulebook and the settings screens sit in 880px.
+   *  - `wide`   the desktop working width: entering a round, the history
+   *             table and the setup wizard get 960px.
+   *
+   * Full-bleed elements — the bar over a round, the wizard's action bar, the
+   * rail — take none of these. They span the whole area beside the rail, which
+   * is what stops a wide window from reading as a centred phone.
+   */
   --container-page: 32rem;
-  --container-wide: 46rem;
+  --container-column: 55rem;
+  --container-wide: 60rem;
 }
 
 /* Dark palette. Applied by the media query unless light is forced. */

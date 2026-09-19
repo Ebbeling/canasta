@@ -14,6 +14,7 @@ import { useServices } from '@/app/servicesContext';
 import { useCommand } from '@/hooks/useCommand';
 import { usePresetEditor } from '@/hooks/useGameData';
 import { AppBar } from '@/ui/app/AppBar';
+import { PageBody } from '@/ui/app/Page';
 import { Check, Minus, Plus } from '@/ui/common/icons';
 import { SettingsEditor } from '@/ui/rules/SettingsEditor';
 import {
@@ -172,7 +173,8 @@ export function RuleSetEditorRoute() {
   if (!editing || !shape) {
     if (loaded.status === 'loading') return <LoadingState label="Regelset laden…" />;
     return (
-      <div className="flex flex-1 flex-col">
+      <PageBody>
+        <div className="flex flex-1 flex-col">
         <AppBar title="Regelset" back="/rulesets" />
         <EmptyState
           title="Deze regelset bestaat niet meer."
@@ -182,7 +184,8 @@ export function RuleSetEditorRoute() {
             </LinkButton>
           }
         />
-      </div>
+        </div>
+      </PageBody>
     );
   }
 
@@ -208,6 +211,8 @@ export function RuleSetEditorRoute() {
 
   return (
     <div className="flex flex-1 flex-col">
+      <PageBody>
+      <div className="flex flex-1 flex-col">
       <AppBar title="Regelset bewerken" subtitle={record.name} back="/rulesets" />
 
       <div className="flex flex-1 flex-col gap-3 pt-1">
@@ -263,6 +268,8 @@ export function RuleSetEditorRoute() {
           </ErrorPanel>
         ) : null}
       </div>
+      </div>
+      </PageBody>
 
       <StickyActions>
         <Button variant="ghost" size="md" onClick={() => navigate('/rulesets')}>
@@ -272,6 +279,7 @@ export function RuleSetEditorRoute() {
           variant="primary"
           size="lg"
           block
+          className="md:w-auto md:px-7"
           disabled={save.state === 'running'}
           onClick={() => void handleSave()}
         >

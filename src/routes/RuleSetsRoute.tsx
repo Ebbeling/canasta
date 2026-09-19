@@ -6,6 +6,7 @@ import { useServices } from '@/app/servicesContext';
 import { useCommand } from '@/hooks/useCommand';
 import { usePresets, useRuleSetChoices } from '@/hooks/useGameData';
 import { AppBar } from '@/ui/app/AppBar';
+import { PageBody } from '@/ui/app/Page';
 import { Plus, Trash } from '@/ui/common/icons';
 import { ConfirmDialog } from '@/ui/common/ConfirmDialog';
 import { Sheet } from '@/ui/common/Sheet';
@@ -101,7 +102,8 @@ export function RuleSetsRoute() {
   }
 
   return (
-    <div className="flex flex-1 flex-col pb-6">
+    <PageBody>
+      <div className="flex flex-1 flex-col pb-6">
       <AppBar title="Regelsets" back="/settings" />
 
       <div className="flex flex-col gap-4.5 pt-2">
@@ -286,6 +288,7 @@ export function RuleSetsRoute() {
         }}
         onCancel={() => setToDelete(undefined)}
       />
-    </div>
+      </div>
+    </PageBody>
   );
 }

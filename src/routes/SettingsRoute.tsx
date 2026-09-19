@@ -7,6 +7,7 @@ import { usePwaInstall } from '@/hooks/usePwaInstall';
 import { applyTheme } from '@/app/theme';
 import { BUILTIN_SOURCES } from '@/application/viewmodels/sources';
 import { AppBar } from '@/ui/app/AppBar';
+import { PageBody } from '@/ui/app/Page';
 import { ExternalLink, Trash } from '@/ui/common/icons';
 import { ConfirmDialog } from '@/ui/common/ConfirmDialog';
 import {
@@ -79,7 +80,8 @@ export function SettingsRoute() {
     gameCount === undefined ? 'Partijen tellen…' : gameCount === 1 ? '1 partij' : `${gameCount} partijen`;
 
   return (
-    <div className="flex flex-1 flex-col pb-6">
+    <PageBody>
+      <div className="flex flex-1 flex-col pb-6">
       <AppBar title="Instellingen" back="/" />
 
       {/*
@@ -248,6 +250,7 @@ export function SettingsRoute() {
         }}
         onCancel={() => setConfirmClear(false)}
       />
-    </div>
+      </div>
+    </PageBody>
   );
 }

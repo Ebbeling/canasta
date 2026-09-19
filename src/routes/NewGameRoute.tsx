@@ -15,6 +15,7 @@ import { useRuleSetChoices } from '@/hooks/useGameData';
 import { useCommand } from '@/hooks/useCommand';
 import { useLiveResult } from '@/hooks/useLiveResult';
 import { AppBar } from '@/ui/app/AppBar';
+import { PageBody } from '@/ui/app/Page';
 import { ChevronRight } from '@/ui/common/icons';
 import { Suit } from '@/ui/common/Suit';
 import { SettingsEditor } from '@/ui/rules/SettingsEditor';
@@ -232,9 +233,16 @@ export function NewGameRoute() {
         onBack={step === 'ruleset' ? undefined : () => setStep(STEPS[stepIndex - 1] ?? 'ruleset')}
       />
 
-      <div className="flex flex-1 flex-col gap-4.5 pt-2">
-        <div className="flex flex-col gap-2.5">
-          <div className="flex gap-1.5" aria-hidden="true">
+      <PageBody width="wide">
+        <div className="flex flex-1 flex-col gap-4.5 pt-2">
+        {/*
+         * On a phone the progress runs above the step's title. From `md` the
+         * design sets them against each other on one line, title left and the
+         * three bars right, which is what stops a wide window from opening on
+         * a full-width hairline.
+         */}
+        <div className="flex flex-col gap-2.5 md:flex-row md:items-end md:justify-between md:gap-5">
+          <div className="flex gap-1.5 md:order-2 md:w-60 md:shrink-0" aria-hidden="true">
             {STEPS.map((name, index) => (
               <span
                 key={name}
@@ -244,11 +252,11 @@ export function NewGameRoute() {
               />
             ))}
           </div>
-          <div>
+          <div className="md:order-1 md:min-w-0">
             <SectionLabel as="div">
               Stap {stepIndex + 1} van {STEPS.length}
             </SectionLabel>
-            <h2 className="mt-0.5 font-display text-[1.75rem] font-semibold leading-tight tracking-title text-pretty">
+            <h2 className="mt-0.5 font-display text-[1.75rem] font-semibold leading-tight tracking-title text-pretty md:text-[2.125rem]">
               {STEP_TITLES[step]}
             </h2>
           </div>
@@ -410,7 +418,8 @@ export function NewGameRoute() {
             </Block>
           </div>
         ) : null}
-      </div>
+        </div>
+      </PageBody>
 
       <StickyActions>
         {step === 'ruleset' ? (
@@ -431,6 +440,7 @@ export function NewGameRoute() {
                 variant="primary"
                 size="lg"
                 block
+                className="md:w-auto md:px-7"
                 disabled={blocked}
                 onClick={() => setStep('rules')}
               >
@@ -442,6 +452,7 @@ export function NewGameRoute() {
                 variant="primary"
                 size="lg"
                 block
+                className="md:w-auto md:px-7"
                 disabled={create.state === 'running'}
                 onClick={() => void start()}
               >

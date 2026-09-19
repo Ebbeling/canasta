@@ -10,13 +10,14 @@ import {
   writeFieldValue,
 } from '@/application/fields/access';
 import { buildFieldLayout, type FieldVM } from '@/application/viewmodels/roundForm';
-import { previewRound, type TeamPreviewVM } from '@/application/viewmodels/roundPreview';
+import { previewRound } from '@/application/viewmodels/roundPreview';
 import type { IssueVM } from '@/application/viewmodels/issues';
 import { roundDraftKey } from '@/application/services/roundService';
 import { useServices } from '@/app/servicesContext';
 import { useGame } from '@/hooks/useGameData';
 import { useCommand } from '@/hooks/useCommand';
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
+import { PageBar, PageBody } from '@/ui/app/Page';
 import { FieldControl } from '@/ui/fields/FieldControl';
 import { Check, Close } from '@/ui/common/icons';
 import { Suit } from '@/ui/common/Suit';
@@ -114,44 +115,6 @@ function RoundActions({
         {label}
       </Button>
     </>
-  );
-}
-
-/**
- * What one team's entry adds up to, for a team that is not the one being
- * edited: the design keeps a card per team in the overview column, so a game
- * with three or six teams shows all of them rather than only the active one.
- */
-function TeamAside({
-  team,
-  index,
-  onSelect,
-}: {
-  team: TeamPreviewVM;
-  index: number;
-  onSelect: () => void;
-}) {
-  return (
-    <Block className="px-4 py-3.5 text-muted">
-      <SectionLabel as="h2">
-        Deze ronde · <Suit index={index} /> {team.name}
-      </SectionLabel>
-      {team.lines.length === 0 ? (
-        <p className="mt-1.5 text-note leading-snug">
-          Nog niets ingevuld.{' '}
-          <button type="button" className="font-semibold text-accent underline" onClick={onSelect}>
-            Wissel naar {team.name}
-          </button>
-        </p>
-      ) : (
-        <div className="mt-1 flex items-baseline justify-between gap-3">
-          <button type="button" className="text-note font-semibold text-accent" onClick={onSelect}>
-            Bewerken
-          </button>
-          <Score className="text-xl text-ink">{team.totalText}</Score>
-        </div>
-      )}
-    </Block>
   );
 }
 
@@ -283,6 +246,11 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
     Boolean(preview?.canSave) && Boolean(preview?.requiresConfirmation) && !state.warningsAccepted;
   const canSave = Boolean(preview?.canSave) && save.state !== 'running';
   const saveLabel = blockedByWarnings ? 'Toch opslaan' : 'Ronde opslaan';
+  // How far the round has got, and whether the switcher still fits on the
+  // header line. The design keeps it there up to four teams.
+  const filledCount = preview?.teams.filter((entry) => entry.lines.length > 0).length ?? 0;
+  const ownRow = game.teams.length > 4;
+  const activePreview = preview?.teams.find((entry) => entry.teamId === team?.id);
 
   /**
    * Save, then leave. The order matters:
@@ -327,99 +295,105 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
        * score never scrolls away while the fields below do.
        *
        * On a phone that is a stack: title, then the switcher, with the actions
-       * in a bar under the thumb. From `md` the design lays the same three
-       * things out on one line across the top of the content — round on the
+       * in a bar under the thumb. From `md` the design lays the same things out
+       * on one line across the *whole* width beside the rail — round on the
        * left, switcher and actions on the right — so the bar below disappears
-       * and the full height goes to the fields.
+       * and the full height goes to the fields. From five teams the switcher no
+       * longer fits on that line and takes a row of its own underneath, which
+       * is what the design does rather than shrinking the chips further.
        */}
-      <div className="sticky top-0 z-30 -mx-4 flex flex-col gap-2.5 border-b border-border bg-panel px-3 pb-3 pt-2.5 sm:-mx-6 sm:px-5 md:-mx-12 md:-mt-5 md:flex-row md:items-center md:gap-4 md:px-8 md:py-3.5">
-        <div className="flex items-center gap-2 md:min-w-0 md:flex-1">
-          <IconButton
-            label="Ronde sluiten"
-            className="md:hidden"
-            onClick={() => navigate(`/games/${gameId}`)}
-          >
-            <Close />
-          </IconButton>
-          <div className="flex-1 text-center md:text-left">
-            <h1 className="text-body font-semibold md:font-display md:text-2xl md:tracking-title">
-              {mode === 'correct' ? `Ronde ${roundNumber} corrigeren` : `Ronde ${roundNumber}`}
-            </h1>
-            <p className="flex items-center justify-center gap-1.5 text-xs text-muted md:justify-start">
-              {state.dirty ? (
-                <>
-                  <span aria-hidden="true" className="size-1.5 rounded-full bg-warn" />
-                  Concept bewaard · nog niet opgeslagen
-                </>
-              ) : (
-                game.effectiveRuleSet.name
-              )}
-            </p>
+      <PageBar width="wide" className="sticky top-0 z-30">
+        <div className="flex flex-col gap-2.5 pb-3 pt-2.5 md:flex-row md:flex-wrap md:items-center md:gap-4 md:py-3.5">
+          <div className="flex items-center gap-2 md:order-1 md:min-w-0 md:flex-1">
+            <IconButton
+              label="Ronde sluiten"
+              className="md:hidden"
+              onClick={() => navigate(`/games/${gameId}`)}
+            >
+              <Close />
+            </IconButton>
+            <div className="flex-1 text-center md:text-left">
+              <h1 className="text-body font-semibold md:font-display md:text-2xl md:tracking-title">
+                {mode === 'correct' ? `Ronde ${roundNumber} corrigeren` : `Ronde ${roundNumber}`}
+              </h1>
+              <p className="flex items-center justify-center gap-1.5 text-xs text-muted md:justify-start">
+                {state.dirty ? (
+                  <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-warn" />
+                ) : null}
+                {filledCount} van {game.teams.length} ingevuld
+              </p>
+            </div>
+            <span className="size-10 shrink-0 md:hidden" aria-hidden="true" />
           </div>
-          <span className="size-10 shrink-0 md:hidden" aria-hidden="true" />
-        </div>
 
-        <div
-          role="tablist"
-          aria-label="Team kiezen"
-          /*
-           * A scrolling row rather than a grid. Two teams fill it exactly, the
-           * way the design draws it; three or more keep the same tile size and
-           * scroll, which beats reflowing into ragged rows that move as the
-           * user switches. A game can have as many teams as its rule set says.
-           * From `md` the strip takes the 400px the design gives it and scrolls
-           * inside that, so the row's height never depends on the team count.
-           */
-          className="flex snap-x gap-1.5 overflow-x-auto rounded-btn bg-panel2 p-1 md:w-100 md:shrink-0"
-        >
-          {game.teams.map((item, index) => {
-            const itemPreview = preview?.teams.find((entry) => entry.teamId === item.id);
-            const selected = index === activeTeam;
-            const members = game.players
-              .filter((player) => item.memberIds.includes(player.id))
-              .map((player) => player.name);
+          <div
+            role="tablist"
+            aria-label="Team kiezen"
+            /*
+             * A scrolling strip on a phone, where there is room for two chips
+             * at a time. From `md` it sits on the header line while it fits,
+             * and from five teams it takes its own row and divides that row
+             * evenly — one column per team, built from the game rather than
+             * written down.
+             */
+            style={ownRow ? { gridTemplateColumns: `repeat(${game.teams.length}, minmax(0,1fr))` } : undefined}
+            className={`flex snap-x gap-1.5 overflow-x-auto rounded-btn bg-panel2 p-1 ${
+              ownRow
+                ? 'md:order-4 md:grid md:w-full md:overflow-visible'
+                : 'md:order-2 md:shrink-0 md:overflow-visible'
+            }`}
+          >
+            {game.teams.map((item, index) => {
+              const itemPreview = preview?.teams.find((entry) => entry.teamId === item.id);
+              const selected = index === activeTeam;
+              const filled = (itemPreview?.lines.length ?? 0) > 0;
 
-            return (
-              <button
-                key={item.id}
-                role="tab"
-                type="button"
-                aria-selected={selected}
-                className={`flex min-h-14 min-w-[calc(50%-0.1875rem)] flex-1 shrink-0 snap-start items-center justify-between gap-2 rounded-tile px-3 py-1.5 text-left transition-colors ${
-                  selected
-                    ? 'border-[1.5px] border-accent bg-panel shadow-soft'
-                    : 'border-[1.5px] border-transparent text-muted'
-                }`}
-                onClick={() => setActiveTeam(index)}
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-1 text-caption font-semibold">
-                    <Suit index={index} />
-                    <span className="truncate">{item.name}</span>
-                  </span>
-                  {members.length > 0 ? (
-                    <span className="block truncate text-meta text-muted">
-                      {members.join(' & ')}
+              return (
+                <button
+                  key={item.id}
+                  role="tab"
+                  type="button"
+                  aria-selected={selected}
+                  className={`flex min-h-13 min-w-[calc(50%-0.1875rem)] flex-1 shrink-0 snap-start items-center justify-between gap-2 rounded-tile px-3 py-1.5 text-left transition-colors ${
+                    ownRow ? 'md:min-w-0' : 'md:min-w-34'
+                  } ${
+                    selected
+                      ? 'border-[1.5px] border-accent bg-panel shadow-soft'
+                      : 'border-[1.5px] border-transparent'
+                  }`}
+                  onClick={() => setActiveTeam(index)}
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1 truncate text-caption font-semibold">
+                      <Suit index={index} />
+                      <span className="truncate">{item.name}</span>
                     </span>
-                  ) : null}
-                </span>
-                <Score className="shrink-0 text-2xl">{itemPreview?.totalText ?? '0'}</Score>
-              </button>
-            );
-          })}
-        </div>
+                    <span className="flex items-center gap-1 text-meta text-muted">
+                      {filled && !selected ? <Check size={11} className="text-accent" /> : null}
+                      {selected ? 'Nu invullen' : filled ? 'Ingevuld' : 'Nog leeg'}
+                    </span>
+                  </span>
+                  <Score className="shrink-0 text-[1.375rem]">
+                    {itemPreview?.totalText ?? '0'}
+                  </Score>
+                </button>
+              );
+            })}
+          </div>
 
-        <div className="hidden shrink-0 items-center gap-2 md:flex">
-          <RoundActions
-            onCancel={() => navigate(`/games/${gameId}`)}
-            onSave={() => void handleSave()}
-            canSave={canSave}
-            label={saveLabel}
-          />
+          <div className="hidden shrink-0 items-center gap-2 md:order-3 md:flex">
+            <RoundActions
+              onCancel={() => navigate(`/games/${gameId}`)}
+              onSave={() => void handleSave()}
+              canSave={canSave}
+              label={saveLabel}
+            />
+          </div>
         </div>
-      </div>
+      </PageBar>
 
-      <div className="flex flex-1 flex-col gap-3 pt-4 md:pt-7">
+      <PageBody width="wide">
+        <div className="flex flex-1 flex-col gap-3 pt-4">
         {save.state === 'failed' ? (
           <ErrorPanel title="Opslaan is niet gelukt. Je invoer is bewaard.">
             {save.error?.message}
@@ -441,10 +415,7 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
          * what they add up to pinned on the right. Entering a round then stops
          * being a scroll down to check the total and back up to correct it.
          */}
-        <div
-          data-wide
-          className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start lg:gap-6"
-        >
+        <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start lg:gap-6">
         {team ? (
           <form
             /*
@@ -485,32 +456,64 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
             aria-label="Overzicht van deze ronde"
             className="flex flex-col gap-3 lg:sticky lg:top-24"
           >
-            {/* One card per team, in the game's own order: the one being
-                edited in full, the rest as the design has them — quiet, with
-                the way back into them. */}
-            {game.teams.map((item, index) => {
-              const itemPreview = preview.teams.find((entry) => entry.teamId === item.id);
-              if (!itemPreview) return null;
+            {/*
+             * Every team in one card, the one being edited lifted out of it —
+             * the design's overview. A card each would push a six-player game
+             * off the screen; a line each keeps the whole round visible while
+             * one of them is being typed.
+             */}
+            <Block className="px-5 pb-3.5 pt-1.5">
+              <SectionLabel as="h2" className="block py-2.5">
+                Deze ronde · alle deelnemers
+              </SectionLabel>
+              {game.teams.map((item, index) => {
+                const itemPreview = preview.teams.find((entry) => entry.teamId === item.id);
+                if (!itemPreview) return null;
+                const selected = index === activeTeam;
 
-              return index === activeTeam ? (
-                <BreakdownList
-                  key={item.id}
-                  team={itemPreview}
-                  title={
-                    <>
-                      Deze ronde · <Suit index={index} /> {item.name}
-                    </>
-                  }
-                />
-              ) : (
-                <TeamAside
-                  key={item.id}
-                  team={itemPreview}
-                  index={index}
-                  onSelect={() => setActiveTeam(index)}
-                />
-              );
-            })}
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setActiveTeam(index)}
+                    aria-current={selected ? 'true' : undefined}
+                    className={`flex w-full items-center justify-between gap-3 text-left ${
+                      selected
+                        ? '-mx-3 rounded-tile bg-accent-soft px-3 py-2.5'
+                        : 'border-t border-border py-2.5'
+                    }`}
+                  >
+                    <span className="flex min-w-0 items-center gap-2 text-sm">
+                      <Suit index={index} />
+                      <span className={`truncate ${selected ? 'font-semibold' : ''}`}>
+                        {item.name}
+                      </span>
+                      <span className="shrink-0 text-xs tabular text-muted">
+                        → {itemPreview.scoreAfterText}
+                      </span>
+                    </span>
+                    <Score
+                      className={`shrink-0 text-[1.375rem] ${selected ? 'text-accent' : ''}`}
+                    >
+                      {itemPreview.totalText}
+                    </Score>
+                  </button>
+                );
+              })}
+            </Block>
+
+            {/* The engine's own reading of what has been typed, for the team
+                being typed into. */}
+            {activePreview && activePreview.lines.length > 0 ? (
+              <BreakdownList
+                team={activePreview}
+                title={
+                  <>
+                    <Suit index={activeTeam} /> {team?.name}
+                  </>
+                }
+              />
+            ) : null}
 
             <IssueChannels
               errors={preview.errors}
@@ -520,7 +523,8 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
           </aside>
         ) : null}
         </div>
-      </div>
+        </div>
+      </PageBody>
 
       <StickyActions className="md:hidden">
         <RoundActions

@@ -144,7 +144,7 @@ export function PartyEditor({
   return (
     // Marks the screen as one that benefits from a wider reading column; the
     // shell picks this up so four teams can stand side by side.
-    <div data-wide className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3">
       {/*
         Split by the width of this block, not the window. On a phone it is one
         column; in the desktop reading column the count and the grouping sit

@@ -8,6 +8,7 @@ import { useCommand } from '@/hooks/useCommand';
 import { downloadTextFile } from '@/ui/common/files';
 import { AppBar } from '@/ui/app/AppBar';
 import { GameNav } from '@/ui/app/GameNav';
+import { PageBody } from '@/ui/app/Page';
 import { More, Plus } from '@/ui/common/icons';
 import { Sheet } from '@/ui/common/Sheet';
 import { Suit } from '@/ui/common/Suit';
@@ -54,6 +55,154 @@ function TeamColumn({
   );
 }
 
+/** The rank a team holds, as a badge — the leader's filled, the rest quiet. */
+function Rank({ team }: { team: TeamStandingVM }) {
+  return (
+    <Score
+      tight={false}
+      className={`inline-flex size-5.5 shrink-0 items-center justify-center rounded-[0.4375rem] text-xs ${
+        team.isLeader ? 'bg-accent text-accent-ink' : 'bg-panel2 text-muted'
+      }`}
+    >
+      {team.rank}
+    </Score>
+  );
+}
+
+/**
+ * The standings, for a game with more than two teams.
+ *
+ * The design's rule: a two-team game keeps the card that sets both totals
+ * against each other, because with two of them the comparison *is* the score.
+ * From three it becomes a table — sorted by position, the leader on top with
+ * the largest figure, everyone below it with their gap to the leader. Rank and
+ * suit both appear, so the order never rests on colour alone. From five the row
+ * loses the member line and tightens, which is the only way eight of them stay
+ * on one screen.
+ *
+ * Ranking, gap and progress all come from the view model; nothing here compares
+ * one score with another.
+ */
+function Standings({ board }: { board: ScoreboardVM }) {
+  const compact = board.teams.length >= 5;
+  // Suits follow the game's own team order, so each team keeps the index it was
+  // dealt even after the list is sorted by position.
+  const ranked = board.teams
+    .map((team, index) => ({ team, index }))
+    .sort((a, b) => a.team.rank - b.team.rank);
+
+  return (
+    <Card className="px-5 pb-4.5 pt-2 lg:px-7">
+      {ranked.map(({ team, index }) =>
+        team.isLeader ? (
+          <div key={team.teamId} className="border-b border-border pb-4 pt-3.5">
+            <div className="flex items-center gap-2 text-note font-semibold text-muted">
+              <Rank team={team} />
+              <Suit index={index} className="text-base" />
+              <span className="truncate text-ink">{team.name}</span>
+              {/* The design names the lead here as well. The view model gives
+                  every team its gap to the leader, and the leader's own is
+                  nought by definition, so the word stands on its own rather
+                  than the screen working the number out for itself. */}
+              <Badge tone="accent" className="ml-auto shrink-0">
+                Voor
+              </Badge>
+            </div>
+
+            <div className="mt-1.5 flex items-end justify-between gap-3">
+              <Score className={compact ? 'text-[2.75rem]' : 'text-5xl'}>{team.totalText}</Score>
+              {compact ? null : (
+                <span className="truncate pb-1 text-right text-caption text-muted">
+                  {team.memberNames.join(' & ')}
+                </span>
+              )}
+            </div>
+
+            <div className="mt-2.5 flex items-center gap-2.5">
+              <div className="min-w-0 flex-1">
+                <ProgressBar
+                  value={team.progress}
+                  label={`${team.name}: voortgang naar de doelscore`}
+                />
+              </div>
+              <span className="shrink-0 whitespace-nowrap text-caption tabular text-muted">
+                {team.infoLines[0]}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div
+            key={team.teamId}
+            className={`grid grid-cols-[1.375rem_1rem_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1.5 border-b border-border last:border-b-0 ${
+              compact ? 'py-2' : 'py-3'
+            }`}
+          >
+            <Rank team={team} />
+            <Suit index={index} className="text-center text-body" />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{team.name}</p>
+              {compact ? null : (
+                <p className="truncate text-xs text-muted">{team.memberNames.join(' & ')}</p>
+              )}
+            </div>
+            <div className="text-right">
+              <Score className={compact ? 'block text-[1.375rem]' : 'block text-[1.625rem]'}>
+                {team.totalText}
+              </Score>
+              <span className="block text-xs tabular text-muted">{team.gapText}</span>
+            </div>
+
+            <div className="col-start-2 col-end-[-1] flex items-center gap-2.5">
+              <div className="min-w-0 flex-1">
+                <ProgressBar
+                  value={team.progress}
+                  label={`${team.name}: voortgang naar de doelscore`}
+                  dimmed
+                />
+              </div>
+              <span className="shrink-0 whitespace-nowrap text-xs tabular text-muted">
+                {team.infoLines[0]}
+              </span>
+            </div>
+          </div>
+        ),
+      )}
+
+      <BoardFooter board={board} />
+    </Card>
+  );
+}
+
+/**
+ * What both shapes of the card say underneath: the target, and the melds.
+ *
+ * The opening requirement can differ per team, so it is only folded into one
+ * line when every team happens to need the same. The sentences themselves come
+ * from the view model and are never reworded here.
+ */
+function BoardFooter({ board }: { board: ScoreboardVM }) {
+  const meldLines = [...new Set(board.teams.map((team) => team.infoLines[1]).filter(Boolean))];
+
+  return (
+    <div className="mt-3 flex flex-col gap-1 border-t border-border pt-3 text-caption text-muted">
+      <span>
+        Doel <b className="tabular text-ink">{board.targetScoreText}</b>
+      </span>
+      {meldLines.length === 1 ? <span>{meldLines[0]}</span> : null}
+      {meldLines.length > 1
+        ? board.teams.map((team, index) =>
+            team.infoLines[1] ? (
+              <span key={team.teamId} className="flex items-baseline gap-1.5">
+                <Suit index={index} />
+                {team.infoLines[1]}
+              </span>
+            ) : null,
+          )
+        : null}
+    </div>
+  );
+}
+
 /**
  * The score card — the one thing on this screen that must read from across the
  * table. Both totals sit at the top in the display face, the lead between them,
@@ -65,10 +214,6 @@ function ScoreCard({ board }: { board: ScoreboardVM }) {
   const ranked = [...board.teams].sort((a, b) => b.total - a.total);
   const lead = ranked.length > 1 ? ranked[0]!.total - ranked[1]!.total : 0;
   const leaderIndex = board.teams.findIndex((team) => team.teamId === ranked[0]?.teamId);
-  // The opening requirement can differ per team, so it is only folded into one
-  // line when every team happens to need the same. The sentences themselves
-  // come from the view model and are never reworded here.
-  const meldLines = [...new Set(board.teams.map((team) => team.infoLines[1]).filter(Boolean))];
 
   return (
     <Card className="px-5 pb-5 pt-5.5 lg:px-8 lg:pb-7 lg:pt-7.5">
@@ -115,22 +260,7 @@ function ScoreCard({ board }: { board: ScoreboardVM }) {
           </div>
         ))}
 
-        <div className="mt-1 flex flex-col gap-1 border-t border-border pt-3 text-caption text-muted">
-          <span>
-            Doel <b className="tabular text-ink">{board.targetScoreText}</b>
-          </span>
-          {meldLines.length === 1 ? <span>{meldLines[0]}</span> : null}
-          {meldLines.length > 1
-            ? board.teams.map((team, index) =>
-                team.infoLines[1] ? (
-                  <span key={team.teamId} className="flex items-baseline gap-1.5">
-                    <Suit index={index} />
-                    {team.infoLines[1]}
-                  </span>
-                ) : null,
-              )
-            : null}
-        </div>
+        <BoardFooter board={board} />
       </div>
     </Card>
   );
@@ -254,7 +384,8 @@ export function ScoreboardRoute() {
   const lastDeltaIndex = data.roundCount - 1;
 
   return (
-    <div className="flex flex-1 flex-col">
+    <PageBody>
+      <div className="flex flex-1 flex-col">
       <AppBar
         title={data.gameName ?? data.teams.map((team) => team.name).join(' · ')}
         subtitle={`${data.ruleSetName} · doel ${data.targetScoreText} punten`}
@@ -266,11 +397,6 @@ export function ScoreboardRoute() {
         }
       />
 
-      {/*
-       * One column on a phone. From `lg` the design gives the progression its
-       * own column, so the standings and how they came about are on screen at
-       * the same time instead of one scroll apart.
-       */}
       {/*
        * One column on a phone. From `lg` the design gives the progression its
        * own column, so the standings and how they came about are on screen at
@@ -296,7 +422,7 @@ export function ScoreboardRoute() {
           </Card>
         ) : null}
 
-        <ScoreCard board={data} />
+        {data.teams.length > 2 ? <Standings board={data} /> : <ScoreCard board={data} />}
 
         {data.canAddRound ? (
           <LinkButton to={`/games/${data.gameId}/round`} variant="primary" size="xl" block>
@@ -382,6 +508,7 @@ export function ScoreboardRoute() {
           </Button>
         </div>
       </Sheet>
-    </div>
+      </div>
+    </PageBody>
   );
 }
