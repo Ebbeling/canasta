@@ -31,6 +31,7 @@ import {
   SectionLabel,
   StickyActions,
 } from '@/ui/common/primitives';
+import { ConfirmDialog } from '@/ui/common/ConfirmDialog';
 import { IssueChannels } from '@/ui/round/IssueChannels';
 import { BreakdownList } from '@/ui/round/BreakdownList';
 import { GameNotFound } from './GameNotFound';
@@ -162,7 +163,8 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
     return cancelPendingDraft;
   }, [state.dirty, state.inputs, gameId, draftKey, services, cancelPendingDraft]);
 
-  const { markClean } = useUnsavedChanges(state.dirty);
+  const guard = useUnsavedChanges(state.dirty);
+  const { markClean } = guard;
 
   const preview = useMemo(() => {
     if (!game || Object.keys(state.inputs).length === 0) return undefined;
@@ -403,6 +405,22 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
           </span>
         ) : null}
       </StickyActions>
+
+      {/*
+       * The unsaved-changes guard, asked in the app's own words. The blocker
+       * itself is untouched — it still holds the navigation, and this dialog
+       * only decides which of its two exits is taken.
+       */}
+      <ConfirmDialog
+        open={guard.blocked}
+        title="Niet-opgeslagen wijzigingen"
+        description="Je hebt wijzigingen die nog niet zijn opgeslagen. Weet je zeker dat je deze pagina wilt verlaten?"
+        confirmLabel="Verlaten"
+        cancelLabel="Blijven"
+        tone="danger"
+        onConfirm={guard.confirmLeave}
+        onCancel={guard.cancelLeave}
+      />
     </div>
   );
 }

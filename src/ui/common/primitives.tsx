@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, ComponentPropsWithRef, ReactNode } from 'react';
 import { Link } from 'react-router';
 
 /**
@@ -23,7 +23,7 @@ const VARIANTS = {
   contrast: 'bg-ink text-surface hover:opacity-90',
   ghost: 'text-muted hover:bg-panel2 hover:text-ink',
   /** Destructive, filled — for the confirmed step of a delete. */
-  danger: 'bg-heart text-white hover:opacity-90',
+  danger: 'bg-heart text-heart-ink hover:opacity-90',
   /** Destructive, quiet — for the control that *opens* a confirmation. */
   dangerSoft: 'bg-neg-soft text-heart hover:opacity-90',
 } as const;
@@ -56,7 +56,9 @@ export function Button({
   block,
   className,
   ...rest
-}: ButtonHTMLAttributes<HTMLButtonElement> & StyleProps) {
+}: ComponentPropsWithRef<'button'> & StyleProps) {
+  // `rest` carries `ref` through: in React 19 a function component receives it
+  // as an ordinary prop, so a dialog can point initial focus at its own button.
   return <button type="button" className={buttonClass({ variant, size, block, className })} {...rest} />;
 }
 

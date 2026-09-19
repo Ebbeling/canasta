@@ -84,6 +84,9 @@
   --color-accent-soft: #dceae1;
   /* The second team's identity colour, and every negative number. */
   --color-heart: #b8412e;
+  /* Text on a filled --color-heart button. Flips with the palette, because the
+   * light-mode heart is a deep red and the dark-mode one is a pale salmon. */
+  --color-heart-ink: #ffffff;
   --color-warn: #8f5c00;
   --color-warn-soft: #f6e8c9;
   --color-neg-soft: #f6ddd7;
@@ -101,6 +104,14 @@
   --shadow-soft:
     0 1px 2px rgba(60, 40, 20, 0.06), 0 10px 28px -14px rgba(60, 40, 20, 0.25);
   --shadow-sheet: 0 -12px 40px rgba(0, 0, 0, 0.25);
+
+  /*
+   * A modal should arrive, not appear. Both are short enough to stay out of the
+   * way, and the reduced-motion block at the bottom of this file flattens them
+   * along with every other animation in the app.
+   */
+  --animate-sheet: sheet-rise 180ms cubic-bezier(0.32, 0.72, 0, 1);
+  --animate-scrim: scrim-fade 180ms ease-out;
 
   /* Touch targets: 44px is the accessibility floor, 56px for a form action,
    * 60px for the one primary action on a screen. */
@@ -125,6 +136,7 @@
     --color-accent-ink: #0f1a15;
     --color-accent-soft: #1e3a2d;
     --color-heart: #e9836f;
+    --color-heart-ink: #2a0f0a;
     --color-warn: #e3b45e;
     --color-warn-soft: #3a2e14;
     --color-neg-soft: #46231c;
@@ -145,11 +157,25 @@
   --color-accent-ink: #0f1a15;
   --color-accent-soft: #1e3a2d;
   --color-heart: #e9836f;
+  --color-heart-ink: #2a0f0a;
   --color-warn: #e3b45e;
   --color-warn-soft: #3a2e14;
   --color-neg-soft: #46231c;
   --color-dim: rgba(0, 0, 0, 0.6);
   --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 28px -14px rgba(0, 0, 0, 0.6);
+}
+
+@keyframes sheet-rise {
+  from {
+    transform: translateY(1.5rem);
+    opacity: 0;
+  }
+}
+
+@keyframes scrim-fade {
+  from {
+    opacity: 0;
+  }
 }
 
 html {

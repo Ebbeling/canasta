@@ -8,7 +8,7 @@ import { applyTheme } from '@/app/theme';
 import { BUILTIN_SOURCES } from '@/application/viewmodels/sources';
 import { AppBar } from '@/ui/app/AppBar';
 import { ExternalLink, Trash } from '@/ui/common/icons';
-import { Sheet } from '@/ui/common/Sheet';
+import { ConfirmDialog } from '@/ui/common/ConfirmDialog';
 import {
   Block,
   Button,
@@ -190,9 +190,8 @@ export function SettingsRoute() {
         </Muted>
       </div>
 
-      <Sheet
+      <ConfirmDialog
         open={confirmClear}
-        onClose={() => setConfirmClear(false)}
         title={
           gameCount === undefined
             ? 'Alle partijen verwijderen?'
@@ -205,29 +204,20 @@ export function SettingsRoute() {
             gemaakt.
           </>
         }
+        confirmLabel="Ja, alles verwijderen"
+        tone="danger"
         icon={
           <span className="flex size-13 items-center justify-center rounded-btn bg-neg-soft text-heart">
             <Trash />
           </span>
         }
-      >
-        <div className="mt-4 flex flex-col gap-2">
-          <Button
-            variant="danger"
-            size="lg"
-            block
-            onClick={() => {
-              void clearAll.run(undefined);
-              setConfirmClear(false);
-            }}
-          >
-            Ja, alles verwijderen
-          </Button>
-          <Button variant="ghost" size="lg" block onClick={() => setConfirmClear(false)}>
-            Annuleren
-          </Button>
-        </div>
-      </Sheet>
+        busy={clearAll.state === 'running'}
+        onConfirm={() => {
+          void clearAll.run(undefined);
+          setConfirmClear(false);
+        }}
+        onCancel={() => setConfirmClear(false)}
+      />
     </div>
   );
 }

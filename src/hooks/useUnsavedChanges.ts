@@ -22,6 +22,19 @@ export interface UnsavedChangesGuard {
    * see the old value and stop the very navigation the save just earned.
    */
   markClean(): void;
+  /**
+   * True while a navigation is held, waiting for an answer.
+   *
+   * The hook reports the state and leaves the asking to the caller, which
+   * renders the app's own dialog. It deliberately does not call `confirm()`:
+   * a native dialog cannot be styled, blocks the whole page, and on iOS can be
+   * suppressed entirely — which would silently turn the guard off.
+   */
+  blocked: boolean;
+  /** Let the held navigation continue. */
+  confirmLeave(): void;
+  /** Stay where we are; the held navigation is dropped. */
+  cancelLeave(): void;
 }
 
 export function useUnsavedChanges(dirty: boolean): UnsavedChangesGuard {
@@ -35,16 +48,6 @@ export function useUnsavedChanges(dirty: boolean): UnsavedChangesGuard {
     ({ currentLocation, nextLocation }) =>
       dirtyRef.current && currentLocation.pathname !== nextLocation.pathname,
   );
-
-  useEffect(() => {
-    if (blocker.state !== 'blocked') return;
-
-    const leave = globalThis.confirm?.(
-      'Je hebt niet-opgeslagen invoer. Wil je deze ronde verlaten?',
-    );
-    if (leave) blocker.proceed?.();
-    else blocker.reset?.();
-  }, [blocker]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -63,5 +66,15 @@ export function useUnsavedChanges(dirty: boolean): UnsavedChangesGuard {
     dirtyRef.current = false;
   }, []);
 
-  return { markClean };
+  // `proceed` and `reset` only exist while the blocker is holding a navigation,
+  // so both are read off the current blocker rather than captured once.
+  const confirmLeave = useCallback(() => {
+    blocker.proceed?.();
+  }, [blocker]);
+
+  const cancelLeave = useCallback(() => {
+    blocker.reset?.();
+  }, [blocker]);
+
+  return { markClean, blocked: blocker.state === 'blocked', confirmLeave, cancelLeave };
 }

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { classic, modernAmerican, twoHanded } from '@/rules/builtin';
 import { cloneRuleSet } from '@/rules/resolve/resolveRuleSet';
@@ -204,7 +204,14 @@ describe('scoreboard', () => {
  * assert both halves.
  */
 describe('round entry — unsaved-changes guard', () => {
-  /** jsdom has `confirm`, but it is a stub; spying is what makes it assertable. */
+  /**
+   * The guard asks with the app's own dialog, never with `window.confirm`.
+   *
+   * The spy stays for exactly that reason: every test in this block asserts it
+   * was not called, so a native dialog creeping back in fails the suite. The
+   * mocked answer would let a stray `confirm()` pass silently, which is what
+   * makes the assertion worth having.
+   */
   function spyOnConfirm(answer: boolean) {
     return vi.spyOn(globalThis, 'confirm').mockReturnValue(answer);
   }
@@ -238,7 +245,7 @@ describe('round entry — unsaved-changes guard', () => {
     expect(confirmSpy).not.toHaveBeenCalled();
   });
 
-  it('still warns when the user leaves without saving', async () => {
+  it('still warns when the user leaves without saving, in the app’s own dialog', async () => {
     const user = userEvent.setup();
     const confirmSpy = spyOnConfirm(false);
     const ctx = await newContext();
@@ -249,13 +256,41 @@ describe('round entry — unsaved-changes guard', () => {
     fireEvent.change(points, { target: { value: '420' } });
     await user.click(screen.getByRole('button', { name: 'Annuleren' }));
 
-    await waitFor(() => expect(confirmSpy).toHaveBeenCalledTimes(1));
-    expect(confirmSpy.mock.calls[0]?.[0]).toMatch(/niet-opgeslagen invoer/);
+    // A real dialog, not the browser's.
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveAccessibleName('Niet-opgeslagen wijzigingen');
+    expect(dialog).toHaveAccessibleDescription(/nog niet zijn opgeslagen/);
+    expect(confirmSpy).not.toHaveBeenCalled();
 
-    // Declined, so the form is still on screen and nothing was committed.
+    // "Blijven" keeps the user here and commits nothing.
+    await user.click(within(dialog).getByRole('button', { name: 'Blijven' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(screen.getByLabelText('Kaartpunten op tafel')).toBeInTheDocument();
     const loaded = await ctx.services.games.load(game.id);
     expect(loaded?.rounds).toHaveLength(0);
+  });
+
+  it('lets the user leave once the dialog is confirmed', async () => {
+    const user = userEvent.setup();
+    const confirmSpy = spyOnConfirm(false);
+    const ctx = await newContext();
+    const game = await seedGame(ctx.services);
+    renderAt(ctx, `/games/${game.id}/round`);
+
+    const points = await screen.findByLabelText('Kaartpunten op tafel');
+    fireEvent.change(points, { target: { value: '420' } });
+    await user.click(screen.getByRole('button', { name: 'Annuleren' }));
+
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Verlaten' }));
+
+    // The navigation the blocker was holding now goes through…
+    expect(await screen.findByRole('link', { name: /Ronde \d+ invoeren/ })).toBeInTheDocument();
+    // …and leaving is still exactly that: nothing was saved on the way out.
+    const loaded = await ctx.services.games.load(game.id);
+    expect(loaded?.rounds).toHaveLength(0);
+    expect(confirmSpy).not.toHaveBeenCalled();
   });
 
   it('leaves the form clean, so a later navigation is not blocked either', async () => {
@@ -533,5 +568,66 @@ describe('rules screen', () => {
 
     expect(await screen.findByRole('link', { name: /Pagat/ })).toBeInTheDocument();
     expect((await screen.findAllByText(/opgehaald 2026-09-19/)).length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * The destructive confirmation, which is the other place the app used to be at
+ * risk of reaching for a native dialog. It shares one component with the
+ * unsaved-changes guard, so these assertions cover both shapes of it.
+ */
+describe('settings — delete-all confirmation', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('asks in a real dialog and deletes nothing until it is confirmed', async () => {
+    const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(globalThis, 'confirm').mockReturnValue(true);
+    const ctx = await newContext();
+    await seedGame(ctx.services);
+    await seedGame(ctx.services);
+    renderAt(ctx, '/settings');
+
+    await user.click(await screen.findByRole('button', { name: 'Verwijderen' }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveAccessibleName('Alle 2 partijen verwijderen?');
+    expect(dialog).toHaveAccessibleDescription(/kan niet ongedaan worden gemaakt/);
+    expect(confirmSpy).not.toHaveBeenCalled();
+
+    // Backing out leaves the games alone.
+    await user.click(within(dialog).getByRole('button', { name: 'Annuleren' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(await ctx.services.games.list()).toHaveLength(2);
+  });
+
+  it('deletes every game once the destructive action is confirmed', async () => {
+    const user = userEvent.setup();
+    const ctx = await newContext();
+    await seedGame(ctx.services);
+    await seedGame(ctx.services);
+    renderAt(ctx, '/settings');
+
+    await user.click(await screen.findByRole('button', { name: 'Verwijderen' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Ja, alles verwijderen' }));
+
+    await waitFor(async () => expect(await ctx.services.games.list()).toHaveLength(0));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('opens with focus on the way out, not on the deletion', async () => {
+    const user = userEvent.setup();
+    const ctx = await newContext();
+    await seedGame(ctx.services);
+    renderAt(ctx, '/settings');
+
+    await user.click(await screen.findByRole('button', { name: 'Verwijderen' }));
+
+    const dialog = await screen.findByRole('dialog');
+    await waitFor(() =>
+      expect(within(dialog).getByRole('button', { name: 'Annuleren' })).toHaveFocus(),
+    );
   });
 });
