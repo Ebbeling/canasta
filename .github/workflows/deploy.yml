@@ -1,0 +1,56 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  # Zodat een deploy ook handmatig opnieuw gestart kan worden, bijvoorbeeld
+  # nadat GitHub Pages in de repo-instellingen is aangezet.
+  workflow_dispatch:
+
+# Alleen wat de Pages-deploy echt nodig heeft. Er is geen secret in het spel;
+# `id-token` laat de deploy-actie zich met OIDC legitimeren.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Eén deploy tegelijk; een nieuwere push vervangt een lopende.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `npm ci` en niet `npm install`: de lockfile is leidend in CI.
+      - run: npm ci
+
+      # Typecheck, lint en de volledige testsuite. Faalt dit, dan draait de
+      # deploy-job niet — die hangt aan `needs: build`.
+      - run: npm run check
+
+      - run: npm run build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- viewport-fit=cover zodat env(safe-area-inset-*) werkt op een telefoon met notch -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f7f7f5" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#12151b" media="(prefers-color-scheme: dark)" />
+    <meta name="description" content="Offline scorekaart voor Canasta" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Canasta" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon-180.png" />
+    <title>Canasta Puntentelling</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      <p>
+        Deze app heeft JavaScript nodig om de puntentelling te kunnen berekenen. Zet JavaScript aan
+        in je browser en laad de pagina opnieuw.
+      </p>
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

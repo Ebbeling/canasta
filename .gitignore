@@ -1,0 +1,26 @@
+node_modules/
+dist/
+dev-dist/
+coverage/
+.vite/
+*.local
+.env*
+!.env.example
+
+# Windows / OneDrive
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
+*.tmp
+~$*
+.DS_Store
+
+# editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# build-output van tsc -b
+tsconfig.tsbuildinfo
+*.log

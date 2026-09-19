@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Canasta">
+  <rect width="512" height="512" rx="96" fill="#12151b" />
+  <!-- Two overlapping cards, the plainest possible signifier for a card game. -->
+  <g transform="rotate(-12 256 256)">
+    <rect x="150" y="128" width="150" height="212" rx="20" fill="#eceef2" />
+  </g>
+  <g transform="rotate(10 256 256)">
+    <rect x="212" y="150" width="150" height="212" rx="20" fill="#4bbf9a" />
+    <path
+      d="M287 214 l22 38 h-44 z M287 298 l-22 -38 h44 z"
+      fill="#0d1117"
+    />
+  </g>
+</svg>

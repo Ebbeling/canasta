@@ -1,0 +1,98 @@
+@import 'tailwindcss';
+
+/*
+ * Tailwind v4 is CSS-first: there is no tailwind.config.js.
+ *
+ * The theme follows the system by default. `/instellingen` can override it by
+ * putting `data-theme="light"` or `data-theme="dark"` on <html>, so the variant
+ * below matches both the media query and the explicit attribute.
+ */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+@theme {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  /* Light palette — the default. */
+  --color-surface: #f7f7f5;
+  --color-panel: #ffffff;
+  --color-panel-muted: #f0f0ee;
+  --color-border: #d9d9d4;
+  --color-ink: #1a1c20;
+  --color-ink-muted: #5b6069;
+  --color-accent: #1f6f5c;
+  --color-accent-ink: #ffffff;
+  --color-positive: #1a6b3c;
+  --color-negative: #a3352b;
+  --color-warning: #8a5a00;
+
+  /* Touch targets: 44px is the accessibility floor, 56px for round entry. */
+  --spacing-touch: 2.75rem;
+  --spacing-touch-lg: 3.5rem;
+}
+
+/* Dark palette. Applied by the media query unless light is forced. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-surface: #12151b;
+    --color-panel: #1a1e26;
+    --color-panel-muted: #222730;
+    --color-border: #333a45;
+    --color-ink: #eceef2;
+    --color-ink-muted: #9aa3b0;
+    --color-accent: #4bbf9a;
+    --color-accent-ink: #0d1117;
+    --color-positive: #62c48a;
+    --color-negative: #f08d82;
+    --color-warning: #e0b15c;
+  }
+}
+
+/* Manual override from the settings screen. */
+:root[data-theme='dark'] {
+  --color-surface: #12151b;
+  --color-panel: #1a1e26;
+  --color-panel-muted: #222730;
+  --color-border: #333a45;
+  --color-ink: #eceef2;
+  --color-ink-muted: #9aa3b0;
+  --color-accent: #4bbf9a;
+  --color-accent-ink: #0d1117;
+  --color-positive: #62c48a;
+  --color-negative: #f08d82;
+  --color-warning: #e0b15c;
+}
+
+html {
+  background-color: var(--color-surface);
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  /* Stops the page bouncing past the sticky score header on iOS. */
+  overscroll-behavior-y: contain;
+}
+
+/* Scores must not jitter while a stepper changes them. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* A visible focus ring everywhere, not just on keyboard heuristics. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
