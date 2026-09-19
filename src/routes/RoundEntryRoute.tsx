@@ -10,7 +10,7 @@ import {
   writeFieldValue,
 } from '@/application/fields/access';
 import { buildFieldLayout, type FieldVM } from '@/application/viewmodels/roundForm';
-import { previewRound } from '@/application/viewmodels/roundPreview';
+import { previewRound, type TeamPreviewVM } from '@/application/viewmodels/roundPreview';
 import type { IssueVM } from '@/application/viewmodels/issues';
 import { roundDraftKey } from '@/application/services/roundService';
 import { useServices } from '@/app/servicesContext';
@@ -82,6 +82,77 @@ function reducer(state: FormState, action: FormAction): FormState {
     case 'saved':
       return { ...state, dirty: false, warningsAccepted: false };
   }
+}
+
+/**
+ * Leave, and save.
+ *
+ * One definition, mounted twice: in the top bar from `md`, where the design
+ * puts both actions on the same line as the round and the team switcher, and in
+ * the sticky bottom bar below it, which is where a thumb can reach them. Only
+ * one of the two is ever displayed, so only one is ever in the accessibility
+ * tree.
+ */
+function RoundActions({
+  onCancel,
+  onSave,
+  canSave,
+  label,
+}: {
+  onCancel: () => void;
+  onSave: () => void;
+  canSave: boolean;
+  label: string;
+}) {
+  return (
+    <>
+      <Button variant="ghost" size="md" onClick={onCancel}>
+        Annuleren
+      </Button>
+      <Button variant="primary" size="lg" block disabled={!canSave} onClick={onSave}>
+        <Check size={18} />
+        {label}
+      </Button>
+    </>
+  );
+}
+
+/**
+ * What one team's entry adds up to, for a team that is not the one being
+ * edited: the design keeps a card per team in the overview column, so a game
+ * with three or six teams shows all of them rather than only the active one.
+ */
+function TeamAside({
+  team,
+  index,
+  onSelect,
+}: {
+  team: TeamPreviewVM;
+  index: number;
+  onSelect: () => void;
+}) {
+  return (
+    <Block className="px-4 py-3.5 text-muted">
+      <SectionLabel as="h2">
+        Deze ronde · <Suit index={index} /> {team.name}
+      </SectionLabel>
+      {team.lines.length === 0 ? (
+        <p className="mt-1.5 text-note leading-snug">
+          Nog niets ingevuld.{' '}
+          <button type="button" className="font-semibold text-accent underline" onClick={onSelect}>
+            Wissel naar {team.name}
+          </button>
+        </p>
+      ) : (
+        <div className="mt-1 flex items-baseline justify-between gap-3">
+          <button type="button" className="text-note font-semibold text-accent" onClick={onSelect}>
+            Bewerken
+          </button>
+          <Score className="text-xl text-ink">{team.totalText}</Score>
+        </div>
+      )}
+    </Block>
+  );
 }
 
 export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
@@ -206,12 +277,12 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
   if (!hydrated) return <LoadingState label="Ronde laden…" />;
 
   const team = game.teams[activeTeam];
-  const teamPreview = preview?.teams.find((item) => item.teamId === team?.id);
   // "Toch opslaan" only makes sense once the errors are gone; while a round is
   // impossible the button stays plainly labelled and disabled.
   const blockedByWarnings =
     Boolean(preview?.canSave) && Boolean(preview?.requiresConfirmation) && !state.warningsAccepted;
   const canSave = Boolean(preview?.canSave) && save.state !== 'running';
+  const saveLabel = blockedByWarnings ? 'Toch opslaan' : 'Ronde opslaan';
 
   /**
    * Save, then leave. The order matters:
@@ -252,19 +323,29 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
     <div className="flex flex-1 flex-col">
       {/*
        * Entering a round is a focus mode: no bottom navigation, one way out,
-       * and the team switcher plus both running totals pinned to the top so the
+       * and the team switcher plus every running total pinned to the top so the
        * score never scrolls away while the fields below do.
+       *
+       * On a phone that is a stack: title, then the switcher, with the actions
+       * in a bar under the thumb. From `md` the design lays the same three
+       * things out on one line across the top of the content — round on the
+       * left, switcher and actions on the right — so the bar below disappears
+       * and the full height goes to the fields.
        */}
-      <div className="sticky top-0 z-30 -mx-4 flex flex-col gap-2.5 border-b border-border bg-panel px-3 pb-3 pt-2.5 sm:-mx-6 sm:px-5">
-        <div className="flex items-center gap-2">
-          <IconButton label="Ronde sluiten" onClick={() => navigate(`/games/${gameId}`)}>
+      <div className="sticky top-0 z-30 -mx-4 flex flex-col gap-2.5 border-b border-border bg-panel px-3 pb-3 pt-2.5 sm:-mx-6 sm:px-5 md:-mx-12 md:-mt-5 md:flex-row md:items-center md:gap-4 md:px-8 md:py-3.5">
+        <div className="flex items-center gap-2 md:min-w-0 md:flex-1">
+          <IconButton
+            label="Ronde sluiten"
+            className="md:hidden"
+            onClick={() => navigate(`/games/${gameId}`)}
+          >
             <Close />
           </IconButton>
-          <div className="flex-1 text-center">
-            <h1 className="text-body font-semibold">
+          <div className="flex-1 text-center md:text-left">
+            <h1 className="text-body font-semibold md:font-display md:text-2xl md:tracking-title">
               {mode === 'correct' ? `Ronde ${roundNumber} corrigeren` : `Ronde ${roundNumber}`}
             </h1>
-            <p className="flex items-center justify-center gap-1.5 text-xs text-muted">
+            <p className="flex items-center justify-center gap-1.5 text-xs text-muted md:justify-start">
               {state.dirty ? (
                 <>
                   <span aria-hidden="true" className="size-1.5 rounded-full bg-warn" />
@@ -275,7 +356,7 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
               )}
             </p>
           </div>
-          <span className="size-10 shrink-0" aria-hidden="true" />
+          <span className="size-10 shrink-0 md:hidden" aria-hidden="true" />
         </div>
 
         <div
@@ -286,8 +367,10 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
            * way the design draws it; three or more keep the same tile size and
            * scroll, which beats reflowing into ragged rows that move as the
            * user switches. A game can have as many teams as its rule set says.
+           * From `md` the strip takes the 400px the design gives it and scrolls
+           * inside that, so the row's height never depends on the team count.
            */
-          className="flex snap-x gap-1.5 overflow-x-auto rounded-btn bg-panel2 p-1"
+          className="flex snap-x gap-1.5 overflow-x-auto rounded-btn bg-panel2 p-1 md:w-100 md:shrink-0"
         >
           {game.teams.map((item, index) => {
             const itemPreview = preview?.teams.find((entry) => entry.teamId === item.id);
@@ -325,9 +408,18 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
             );
           })}
         </div>
+
+        <div className="hidden shrink-0 items-center gap-2 md:flex">
+          <RoundActions
+            onCancel={() => navigate(`/games/${gameId}`)}
+            onSave={() => void handleSave()}
+            canSave={canSave}
+            label={saveLabel}
+          />
+        </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-3 pt-4">
+      <div className="flex flex-1 flex-col gap-3 pt-4 md:pt-7">
         {save.state === 'failed' ? (
           <ErrorPanel title="Opslaan is niet gelukt. Je invoer is bewaard.">
             {save.error?.message}
@@ -354,18 +446,19 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
           className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start lg:gap-6"
         >
         {team ? (
-          // The container is the wrapper, not the form: an element cannot
-          // answer a query about its own width.
-          <div className="@container">
           <form
-            // Two columns of field groups, but only once there is room for
-            // them beside the overview. The window being wide says nothing
-            // about the space left over here.
-            className="flex flex-col gap-3 @[38rem]:grid @[38rem]:grid-cols-2 @[38rem]:items-start"
+            /*
+             * The field groups are laid out by how much room this column has,
+             * not by how wide the window is: `auto-fit` puts as many 16rem
+             * columns side by side as fit and falls back to one when they do
+             * not. Beside the overview that works out at the two columns the
+             * design draws; on a phone it is the single column it always was.
+             */
+            className="grid grid-cols-[repeat(auto-fit,minmax(16rem,1fr))] items-start gap-4"
             onSubmit={(event) => event.preventDefault()}
           >
             {layout.map((group) => (
-              <Block key={group.category} className="px-4 py-1.5">
+              <Block key={group.category} className="px-4 py-1.5 lg:rounded-[1.25rem] lg:px-4.5">
                 <SectionLabel className="block pb-1 pt-2.5">{group.title}</SectionLabel>
                 {group.fields.map((field) => (
                   <FieldControl
@@ -385,21 +478,39 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
               </Block>
             ))}
           </form>
-          </div>
         ) : null}
 
         {preview ? (
-          <aside className="flex flex-col gap-3 lg:sticky lg:top-4">
-            {teamPreview ? (
-              <BreakdownList
-                team={teamPreview}
-                title={
-                  <>
-                    Deze ronde · <Suit index={activeTeam} /> {team?.name}
-                  </>
-                }
-              />
-            ) : null}
+          <aside
+            aria-label="Overzicht van deze ronde"
+            className="flex flex-col gap-3 lg:sticky lg:top-24"
+          >
+            {/* One card per team, in the game's own order: the one being
+                edited in full, the rest as the design has them — quiet, with
+                the way back into them. */}
+            {game.teams.map((item, index) => {
+              const itemPreview = preview.teams.find((entry) => entry.teamId === item.id);
+              if (!itemPreview) return null;
+
+              return index === activeTeam ? (
+                <BreakdownList
+                  key={item.id}
+                  team={itemPreview}
+                  title={
+                    <>
+                      Deze ronde · <Suit index={index} /> {item.name}
+                    </>
+                  }
+                />
+              ) : (
+                <TeamAside
+                  key={item.id}
+                  team={itemPreview}
+                  index={index}
+                  onSelect={() => setActiveTeam(index)}
+                />
+              );
+            })}
 
             <IssueChannels
               errors={preview.errors}
@@ -411,26 +522,20 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
         </div>
       </div>
 
-      <StickyActions>
-        <Button variant="ghost" size="md" onClick={() => navigate(`/games/${gameId}`)}>
-          Annuleren
-        </Button>
-        <Button
-          variant="primary"
-          size="lg"
-          block
-          disabled={!canSave}
-          onClick={() => void handleSave()}
-        >
-          <Check size={18} />
-          {blockedByWarnings ? 'Toch opslaan' : 'Ronde opslaan'}
-        </Button>
-        {!preview?.canSave ? (
-          <span className="sr-only" role="status">
-            Los eerst de fouten op.
-          </span>
-        ) : null}
+      <StickyActions className="md:hidden">
+        <RoundActions
+          onCancel={() => navigate(`/games/${gameId}`)}
+          onSave={() => void handleSave()}
+          canSave={canSave}
+          label={saveLabel}
+        />
       </StickyActions>
+
+      {!preview?.canSave ? (
+        <span className="sr-only" role="status">
+          Los eerst de fouten op.
+        </span>
+      ) : null}
 
       {/*
        * The unsaved-changes guard, asked in the app's own words. The blocker

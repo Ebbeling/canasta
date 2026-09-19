@@ -95,7 +95,7 @@ export function DesktopRail() {
   const { gameId } = useParams();
 
   return (
-    <aside className="sticky top-0 hidden h-dvh w-18 shrink-0 flex-col gap-5 overflow-y-auto border-r border-border bg-panel px-3 py-6 md:flex lg:w-66 lg:px-4">
+    <aside aria-label="Canasta" className="sticky top-0 hidden h-dvh w-18 shrink-0 flex-col gap-5 overflow-y-auto border-r border-border bg-panel px-3 py-6 md:flex lg:w-66 lg:px-4">
       <NavLink to="/" className="flex items-center gap-2.5 px-2 max-lg:justify-center">
         <span className="font-display text-[1.375rem] font-semibold tracking-display">
           <span className="max-lg:hidden">Canasta</span>

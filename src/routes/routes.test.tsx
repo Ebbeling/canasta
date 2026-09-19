@@ -65,6 +65,21 @@ async function seedRound(
   });
 }
 
+/**
+ * Save or cancel on the round form.
+ *
+ * The form mounts both actions twice on purpose: in the top bar the desktop
+ * design puts them in, and in the sticky bar a thumb can reach. Exactly one of
+ * the two is displayed at any width, but jsdom loads no stylesheet, so both are
+ * in the tree here. They are the same component driving the same handler, so
+ * take the first and assert there are no others beyond the pair.
+ */
+function roundAction(name: 'Ronde opslaan' | 'Toch opslaan' | 'Annuleren'): HTMLElement {
+  const found = screen.getAllByRole('button', { name });
+  expect(found).toHaveLength(2);
+  return found[0]!;
+}
+
 describe('routing', () => {
   it('shows the home screen', async () => {
     renderAt(await newContext(), '/');
@@ -234,7 +249,7 @@ describe('round entry — unsaved-changes guard', () => {
     const points = await screen.findByLabelText('Kaartpunten op tafel');
     fireEvent.change(points, { target: { value: '420' } });
     await user.click(await screen.findByLabelText('Team heeft geopend'));
-    await user.click(screen.getByRole('button', { name: 'Ronde opslaan' }));
+    await user.click(roundAction('Ronde opslaan'));
 
     // The round lands…
     await waitFor(async () => {
@@ -258,7 +273,7 @@ describe('round entry — unsaved-changes guard', () => {
 
     const points = await screen.findByLabelText('Kaartpunten op tafel');
     fireEvent.change(points, { target: { value: '420' } });
-    await user.click(screen.getByRole('button', { name: 'Annuleren' }));
+    await user.click(roundAction('Annuleren'));
 
     // A real dialog, not the browser's.
     const dialog = await screen.findByRole('dialog');
@@ -284,7 +299,7 @@ describe('round entry — unsaved-changes guard', () => {
 
     const points = await screen.findByLabelText('Kaartpunten op tafel');
     fireEvent.change(points, { target: { value: '420' } });
-    await user.click(screen.getByRole('button', { name: 'Annuleren' }));
+    await user.click(roundAction('Annuleren'));
 
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: 'Verlaten' }));
@@ -306,7 +321,7 @@ describe('round entry — unsaved-changes guard', () => {
 
     const points = await screen.findByLabelText('Kaartpunten op tafel');
     fireEvent.change(points, { target: { value: '250' } });
-    await user.click(screen.getByRole('button', { name: 'Ronde opslaan' }));
+    await user.click(roundAction('Ronde opslaan'));
 
     await screen.findByRole('link', { name: /Ronde \d+ invoeren/ });
 
@@ -337,7 +352,7 @@ describe('round entry — unsaved-changes guard', () => {
       'Slechts één team kan in een ronde uitgaan.',
     );
 
-    const save = screen.getByRole('button', { name: 'Ronde opslaan' });
+    const save = roundAction('Ronde opslaan');
     expect(save).toBeDisabled();
     await user.click(save);
 
@@ -368,7 +383,7 @@ describe('round entry — unsaved-changes guard', () => {
       { timeout: 4000 },
     );
 
-    await user.click(screen.getByRole('button', { name: 'Ronde opslaan' }));
+    await user.click(roundAction('Ronde opslaan'));
     await screen.findByRole('link', { name: /Ronde \d+ invoeren/ });
 
     // Saving clears the draft, and nothing writes it back afterwards.
@@ -424,7 +439,7 @@ describe('round entry', () => {
     const aces = await screen.findByLabelText("Azen-Canasta's");
     await user.clear(aces);
     await user.type(aces, '1');
-    await user.click(screen.getByRole('button', { name: 'Ronde opslaan' }));
+    await user.click(roundAction('Ronde opslaan'));
 
     await waitFor(async () => {
       const loaded = await ctx.services.games.load(game.id);
@@ -447,7 +462,7 @@ describe('round entry', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Slechts één team kan in een ronde uitgaan.',
     );
-    expect(screen.getByRole('button', { name: 'Ronde opslaan' })).toBeDisabled();
+    expect(roundAction('Ronde opslaan')).toBeDisabled();
   });
 
   it('shows advisory rules as their own labelled region', async () => {
@@ -505,7 +520,7 @@ describe('history and corrections', () => {
     const points = await screen.findByLabelText('Kaartpunten op tafel');
     expect(points).toHaveValue(400);
     fireEvent.change(points, { target: { value: '900' } });
-    await user.click(screen.getByRole('button', { name: 'Ronde opslaan' }));
+    await user.click(roundAction('Ronde opslaan'));
 
     // 900 + 300 = 1200 for the first team.
     await waitFor(async () => {

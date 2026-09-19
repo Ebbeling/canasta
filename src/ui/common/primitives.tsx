@@ -464,9 +464,18 @@ export function SegmentedControl<T extends string>({
  * Sticky so the primary action stays reachable while a long form scrolls, with
  * the safe-area inset added so it clears the iOS home indicator.
  */
-export function StickyActions({ children }: { children: ReactNode }) {
+export function StickyActions({
+  children,
+  className = '',
+}: {
+  children: ReactNode;
+  /** For a screen that carries its actions somewhere else at some width. */
+  className?: string;
+}) {
   return (
-    <div className="sticky bottom-0 z-20 -mx-4 mt-4 flex items-center gap-2.5 border-t border-border bg-panel px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]">
+    <div
+      className={`sticky bottom-0 z-20 -mx-4 mt-4 flex items-center gap-2.5 border-t border-border bg-panel px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] ${className}`}
+    >
       {children}
     </div>
   );
