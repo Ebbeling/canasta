@@ -1,6 +1,7 @@
 import { NavLink, useParams } from 'react-router';
 import { useScoreboard } from '@/hooks/useGameData';
-import { BoardIcon, BookIcon, ChevronLeft, ClockIcon, Plus, Sliders } from '@/ui/common/icons';
+import { BoardIcon, BookIcon, Check, ChevronLeft, ClockIcon, Plus, Sliders } from '@/ui/common/icons';
+import { useRailSteps, type RailStep } from '@/ui/app/railSteps';
 import { Suit } from '@/ui/common/Suit';
 import { SectionLabel } from '@/ui/common/primitives';
 
@@ -36,6 +37,48 @@ function Marker({ active }: { active: boolean }) {
         active ? 'bg-accent' : 'border-[1.5px] border-border'
       }`}
     />
+  );
+}
+
+/**
+ * Where the user is in a wizard.
+ *
+ * The design replaces the rail's destinations with the steps while a game is
+ * being set up: what is done, what is being filled in, what is still to come.
+ * The steps themselves come from the screen that owns them — including the
+ * choice already made, which is why a finished step can read "Variant ·
+ * Classic" rather than the question it answered.
+ */
+function WizardContext({ steps }: { steps: RailStep[] }) {
+  return (
+    <>
+      <NavLink to="/" className={`${RAIL_ITEM} text-muted hover:text-ink`}>
+        <ChevronLeft size={18} />
+        <span className="max-lg:sr-only">Home</span>
+      </NavLink>
+
+      <ol aria-label="Stappen" className="flex flex-col gap-1">
+        {steps.map((step, index) => (
+          <li
+            key={step.label}
+            aria-current={step.current ? 'step' : undefined}
+            className={`${RAIL_ITEM} ${
+              step.current ? 'bg-accent-soft font-semibold text-accent' : 'font-medium text-muted'
+            }`}
+          >
+            <span
+              aria-hidden="true"
+              className={`inline-flex size-5.5 shrink-0 items-center justify-center rounded-[0.4375rem] font-display text-xs font-semibold ${
+                step.done || step.current ? 'bg-accent text-accent-ink' : 'bg-panel2 text-muted'
+              }`}
+            >
+              {step.done ? <Check size={12} /> : index + 1}
+            </span>
+            <span className="truncate max-lg:sr-only">{step.label}</span>
+          </li>
+        ))}
+      </ol>
+    </>
   );
 }
 
@@ -93,6 +136,7 @@ export function DesktopRail() {
   // The layout route sits above `games/:gameId`, and `useParams` reports the
   // whole matched hierarchy, so this is the id of the game being looked at.
   const { gameId } = useParams();
+  const steps = useRailSteps();
 
   return (
     <aside aria-label="Canasta" className="sticky top-0 hidden h-dvh w-18 shrink-0 flex-col gap-5 overflow-y-auto border-r border-border bg-panel px-3 py-6 md:flex lg:w-66 lg:px-4">
@@ -111,6 +155,8 @@ export function DesktopRail() {
 
       {gameId ? (
         <GameContext gameId={gameId} />
+      ) : steps ? (
+        <WizardContext steps={steps} />
       ) : (
         <>
           <nav aria-label="Hoofdmenu" className="flex flex-col gap-1">

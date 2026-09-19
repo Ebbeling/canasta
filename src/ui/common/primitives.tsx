@@ -115,18 +115,38 @@ export function IconLink({
 
 /* ----------------------------------------------------------------- surfaces */
 
-/** The most prominent surface: a card lifted off the page. */
+const CARD_TONES = {
+  /** The ordinary surface. */
+  panel: 'border-border bg-panel text-ink',
+  /** A result, in the accent — a finished game announcing itself. */
+  accent: 'border-accent bg-accent text-accent-ink',
+  /** Something that needs attention but is not an error. */
+  warn: 'border-warn-soft bg-warn-soft text-ink',
+} as const;
+
+/**
+ * The most prominent surface: a card lifted off the page.
+ *
+ * The background is a `tone`, not something a caller adds through
+ * `className`. Two background utilities on one element are settled by the order
+ * of the stylesheet rather than the order they are written in, so a card asking
+ * for the accent could silently come out the colour of the page.
+ */
 export function Card({
   children,
   className = '',
+  tone = 'panel',
   as: Tag = 'div',
 }: {
   children: ReactNode;
   className?: string;
+  tone?: keyof typeof CARD_TONES;
   as?: 'div' | 'section' | 'article';
 }) {
   return (
-    <Tag className={`rounded-card border border-border bg-panel shadow-soft lg:rounded-sheet ${className}`}>
+    <Tag
+      className={`rounded-card border shadow-soft lg:rounded-sheet ${CARD_TONES[tone]} ${className}`}
+    >
       {children}
     </Tag>
   );
@@ -181,18 +201,36 @@ export function PageTitle({ children, className = '' }: { children: ReactNode; c
   );
 }
 
-/** The small uppercase label that titles a group. */
+const LABEL_TONES = {
+  muted: 'text-muted',
+  warn: 'text-warn',
+  /** On a filled surface, where the label takes the surface's own ink. */
+  inherit: 'opacity-85',
+} as const;
+
+/**
+ * The small uppercase label that titles a group.
+ *
+ * The colour is a `tone` for the same reason a card's background is: two text
+ * colours on one element are settled by the stylesheet's order, not by the
+ * order they are written in, so a label asking for a different one could come
+ * out grey anyway.
+ */
 export function SectionLabel({
   children,
   as: Tag = 'h2',
+  tone = 'muted',
   className = '',
 }: {
   children: ReactNode;
   as?: 'h2' | 'h3' | 'div' | 'span';
+  tone?: keyof typeof LABEL_TONES;
   className?: string;
 }) {
   return (
-    <Tag className={`text-xs font-semibold uppercase tracking-label text-muted ${className}`}>
+    <Tag
+      className={`text-xs font-semibold uppercase tracking-label ${LABEL_TONES[tone]} ${className}`}
+    >
       {children}
     </Tag>
   );

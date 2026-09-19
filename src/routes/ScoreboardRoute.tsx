@@ -100,12 +100,8 @@ function Standings({ board }: { board: ScoreboardVM }) {
               <Rank team={team} />
               <Suit index={index} className="text-base" />
               <span className="truncate text-ink">{team.name}</span>
-              {/* The design names the lead here as well. The view model gives
-                  every team its gap to the leader, and the leader's own is
-                  nought by definition, so the word stands on its own rather
-                  than the screen working the number out for itself. */}
               <Badge tone="accent" className="ml-auto shrink-0">
-                Voor
+                {team.leadText ? `Voor · ${team.leadText}` : 'Gelijk'}
               </Badge>
             </div>
 
@@ -266,25 +262,86 @@ function ScoreCard({ board }: { board: ScoreboardVM }) {
   );
 }
 
-/** The result banner, in the accent so a finished game announces itself. */
-function WonCard({
+/**
+ * How a finished game closes.
+ *
+ * The design gives it three parts: the result in the accent, the final
+ * standings, and the two ways on from here. The standings are a plainer list
+ * than the one a running game gets — no progress towards a target that has
+ * already been reached, no gap to a leader who has already won — with the
+ * winners marked in words as well as in colour.
+ */
+function ResultCard({
   board,
-  target,
+  outcome,
 }: {
-  board: Extract<ScoreboardVM['outcome'], { kind: 'won' }>;
-  target: string;
+  board: ScoreboardVM;
+  outcome: Extract<ScoreboardVM['outcome'], { kind: 'won' }>;
 }) {
+  const winners = new Set(outcome.winnerTeamIds);
+  const winningTotal = board.teams.find((team) => winners.has(team.teamId))?.totalText;
+
   return (
-    <Card className="flex flex-col items-center gap-1.5 bg-accent px-5 pb-5 pt-5.5 text-center text-accent-ink">
-      <SectionLabel as="h2" className="text-accent-ink/85">
+    <Card
+      tone="accent"
+      className="flex flex-col gap-1.5 px-5 pb-5 pt-5.5 lg:rounded-sheet lg:px-8 lg:py-7"
+    >
+      <SectionLabel as="h2" tone="inherit">
         Uitslag
       </SectionLabel>
-      <p className="font-display text-[1.875rem] font-semibold leading-tight tracking-title">
-        {board.tie ? 'Gedeelde winst: ' : 'Gewonnen: '}
-        {board.winnerNames.join(' en ')}
+      <p className="font-display text-[1.875rem] font-semibold leading-tight tracking-title lg:text-4xl">
+        {outcome.tie ? 'Gedeelde winst: ' : 'Gewonnen: '}
+        {outcome.winnerNames.join(' en ')}
       </p>
       <p className="text-sm text-accent-ink/90">
-        Beslist na ronde {board.decidedAfterRound} · doel {target} punten
+        Beslist na ronde {outcome.decidedAfterRound} · doel {board.targetScoreText} punten
+        {outcome.tie && winningTotal ? ` · beide op ${winningTotal}` : ''}
+      </p>
+    </Card>
+  );
+}
+
+/** The final table: rank, who, and what they ended on. */
+function FinalStandings({ board }: { board: ScoreboardVM }) {
+  const compact = board.teams.length >= 5;
+  const ranked = board.teams
+    .map((team, index) => ({ team, index }))
+    .sort((a, b) => a.team.rank - b.team.rank);
+
+  return (
+    <Card className="@container px-5 pb-4 pt-1 lg:rounded-sheet lg:px-8 lg:pb-5">
+      {ranked.map(({ team, index }) => (
+        <div
+          key={team.teamId}
+          className={`grid grid-cols-[1.625rem_1.25rem_minmax(0,1fr)_auto] items-center gap-x-2.5 border-b border-border ${
+            compact ? 'py-2.5' : 'py-4'
+          }`}
+        >
+          <Rank team={team} />
+          <Suit index={index} className="text-center text-[1.0625rem]" />
+          {/* The badge drops under the name on a narrow card rather than
+              squeezing it; the total steps down with the same room. */}
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2">
+            <div className="min-w-0">
+              <p className="truncate text-body font-semibold">{team.name}</p>
+              {compact ? null : (
+                <p className="truncate text-caption text-muted">{team.memberNames.join(' & ')}</p>
+              )}
+            </div>
+            {team.isWinner ? <Badge tone="accent">Gewonnen</Badge> : null}
+          </div>
+          <Score
+            className={`leading-none ${
+              compact ? 'text-[1.75rem]' : 'text-[2rem] @[21rem]:text-[2.5rem]'
+            } ${team.isWinner ? '' : 'text-muted'}`}
+          >
+            {team.totalText}
+          </Score>
+        </div>
+      ))}
+
+      <p className="pt-3.5 text-caption text-muted">
+        Doel <b className="tabular text-ink">{board.targetScoreText}</b>
       </p>
     </Card>
   );
@@ -405,12 +462,12 @@ export function ScoreboardRoute() {
       <div className="flex flex-1 flex-col gap-3.5 pt-1 lg:grid lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-start lg:gap-6">
         <div className="flex flex-col gap-3.5">
         {data.outcome.kind === 'won' ? (
-          <WonCard board={data.outcome} target={data.targetScoreText} />
+          <ResultCard board={data} outcome={data.outcome} />
         ) : null}
 
         {data.outcome.kind === 'tieBreakRound' ? (
-          <Card className="flex flex-col gap-1.5 bg-warn-soft px-5 py-4">
-            <SectionLabel as="h2" className="text-warn">
+          <Card tone="warn" className="flex flex-col gap-1.5 px-5 py-4">
+            <SectionLabel as="h2" tone="warn">
               Gelijkspel
             </SectionLabel>
             <p className="text-body font-medium">
@@ -422,7 +479,16 @@ export function ScoreboardRoute() {
           </Card>
         ) : null}
 
-        {data.teams.length > 2 ? <Standings board={data} /> : <ScoreCard board={data} />}
+        {/* A finished game gets the design's closing table; a running one
+            gets the card that compares two totals, or the standings from
+            three teams up. */}
+        {data.outcome.kind === 'won' ? (
+          <FinalStandings board={data} />
+        ) : data.teams.length > 2 ? (
+          <Standings board={data} />
+        ) : (
+          <ScoreCard board={data} />
+        )}
 
         {data.canAddRound ? (
           <LinkButton to={`/games/${data.gameId}/round`} variant="primary" size="xl" block>

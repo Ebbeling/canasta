@@ -23,6 +23,15 @@ export interface TeamStandingVM {
   /** Signed difference against the leader; 0 for the leader itself. */
   gap: number;
   gapText: string;
+  /**
+   * What the leader is ahead by: the distance to the best total below the
+   * lead. Nought for everyone else, and for a leader nobody is behind — a
+   * game where every team is level has no lead to name. Computed here because
+   * it is a fact about the standings, not something a screen should work out
+   * from two numbers it happens to be rendering.
+   */
+  lead: number;
+  leadText: string;
   /** 0..1, clamped — a bar width, nothing more. */
   progress: number;
   remaining: number;
@@ -85,6 +94,8 @@ export function buildScoreboard(game: Game, rounds: readonly Round[]): Scoreboar
       : projection.endState.targetScore;
 
   const best = projection.standings[0]?.total ?? 0;
+  const runnerUp = projection.standings.find((entry) => entry.total < best);
+  const lead = runnerUp ? best - runnerUp.total : 0;
   const winnerIds = new Set(projection.result?.winnerTeamIds ?? []);
   const rankByTeam = new Map(projection.standings.map((entry) => [entry.teamId, entry.rank]));
 
@@ -115,6 +126,8 @@ export function buildScoreboard(game: Game, rounds: readonly Round[]): Scoreboar
         rank: rankByTeam.get(team.id) ?? 1,
         gap,
         gapText: gap === 0 ? '' : formatDelta(gap),
+        lead: total === best ? lead : 0,
+        leadText: total === best && lead > 0 ? formatDelta(lead) : '',
         progress: targetScore > 0 ? Math.min(Math.max(total / targetScore, 0), 1) : 0,
         remaining,
         remainingText: formatPoints(remaining),

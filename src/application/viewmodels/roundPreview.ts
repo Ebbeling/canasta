@@ -40,6 +40,15 @@ export interface TeamPreviewVM {
 
 export interface RoundPreviewVM {
   teams: TeamPreviewVM[];
+  /** How many of them have anything entered yet. */
+  filledCount: number;
+  /**
+   * That count as a sentence. The word for a participant follows the rule
+   * set — a game of partnerships has teams, a game where everyone plays for
+   * themselves has players — and which of the two it is belongs here rather
+   * than in a component, which may not read a configuration at all.
+   */
+  filledLabel: string;
   errors: IssueVM[];
   warnings: IssueVM[];
   advisories: IssueVM[];
@@ -69,6 +78,8 @@ export function previewRound(args: PreviewRoundArgs): RoundPreviewVM {
   });
 
   const nameById = new Map(args.teams.map((team) => [team.id, team.name]));
+  const participant =
+    args.ruleSet.configuration.teams.mode === 'partnership' ? 'teams' : 'spelers';
 
   const teams: TeamPreviewVM[] = computation.scores.map((score) => {
     const before = computation.scoreBefore[score.teamId] ?? 0;
@@ -101,8 +112,12 @@ export function previewRound(args: PreviewRoundArgs): RoundPreviewVM {
     toIssueVMs([...computation.issues, ...perTeam], args.teams),
   );
 
+  const filledCount = teams.filter((team) => team.lines.length > 0).length;
+
   return {
     teams,
+    filledCount,
+    filledLabel: `${filledCount} van ${teams.length} ${participant} ingevuld`,
     errors,
     warnings,
     advisories: advisoryIssues(args.ruleSet),

@@ -51,6 +51,11 @@ export interface RuleValueRowVM {
  * carries its own unit, so joining phrases never produces a bare "13".
  */
 export interface SummaryFactVM extends RuleValueRowVM {
+  /**
+   * The same fact as a sentence fragment, for the one-line summary of a rule
+   * set. `valueText` is the bare value, because a tile that already carries
+   * `label` underneath would otherwise say the unit twice.
+   */
   phrase: string;
 }
 
@@ -192,13 +197,16 @@ function summaryFacts(configuration: RuleSetConfiguration): SummaryFactVM[] {
   const playerCount = pluralise(players.default, 'speler', 'spelers');
 
   const facts: SummaryFactVM[] = [
-    { label: 'Spelers', valueText: playerCount, phrase: playerCount },
+    { label: 'Spelers', valueText: formatPoints(players.default), phrase: playerCount },
   ];
 
   // A rule set for individual play has no meaningful team count to show.
   if (teams.mode === 'partnership') {
-    const teamCount = pluralise(teams.count, 'team', 'teams');
-    facts.push({ label: 'Teams', valueText: teamCount, phrase: teamCount });
+    facts.push({
+      label: 'Teams',
+      valueText: formatPoints(teams.count),
+      phrase: pluralise(teams.count, 'team', 'teams'),
+    });
   }
 
   facts.push(
@@ -209,12 +217,12 @@ function summaryFacts(configuration: RuleSetConfiguration): SummaryFactVM[] {
     },
     {
       label: 'Kaartspel',
-      valueText: `${formatPoints(deck.totalCards)} kaarten`,
+      valueText: formatPoints(deck.totalCards),
       phrase: `${formatPoints(deck.totalCards)} kaarten in het spel`,
     },
     {
       label: 'Doelscore',
-      valueText: `${formatPoints(endGame.targetScore)} punten`,
+      valueText: formatPoints(endGame.targetScore),
       phrase: `doel ${formatPoints(endGame.targetScore)} punten`,
     },
   );

@@ -33,8 +33,8 @@ async function newContext(): Promise<TestContext> {
 }
 
 async function seedGame(services: Services, teamCount = 2) {
-  const names = ['A', 'B', 'C', 'D', 'E', 'F'];
-  const playerCount = teamCount === 2 ? 4 : 6;
+  const names = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  const playerCount = teamCount === 2 ? 4 : teamCount === 4 ? 8 : 6;
   const seats = Array.from({ length: teamCount }, (_, team) =>
     Array.from({ length: playerCount / teamCount }, (_, slot) => team + slot * teamCount),
   );
@@ -317,4 +317,122 @@ describe('geschiedenis shows the standings beside the rounds', () => {
       expect(main.getAllByText(rank).length).toBeGreaterThan(0);
     }
   });
+});
+
+/** Enough rounds to carry a team past the 5.000 the built-in aims at. */
+async function playUntilWon(services: Services, game: { id: string; teams: { id: string }[] }) {
+  for (let round = 0; round < 6; round += 1) {
+    await seedRound(
+      services,
+      game.id,
+      game.teams,
+      game.teams.map((_team, index) => (index === 1 ? 900 : 300)),
+    );
+  }
+}
+
+describe('een afgeronde partij', () => {
+  for (const teamCount of [2, 3, 6]) {
+    it(`names the winner and ranks all ${teamCount} of them`, async () => {
+      const ctx = await newContext();
+      const game = await seedGame(ctx.services, teamCount);
+      await playUntilWon(ctx.services, game);
+      renderAt(ctx, `/games/${game.id}`);
+
+      const main = within(await screen.findByRole('main'));
+      expect(await main.findByRole('heading', { name: 'Uitslag' })).toBeInTheDocument();
+      expect(main.getByText(/^Gewonnen: /)).toHaveTextContent('Groen');
+
+      // Every team is in the closing table, and the winner is named in words.
+      const names = ['Rood', 'Groen', 'Blauw', 'Geel', 'Paars', 'Grijs'].slice(0, teamCount);
+      for (const name of names) expect(main.getAllByText(name).length).toBeGreaterThan(0);
+      expect(main.getAllByText('Gewonnen')).toHaveLength(1);
+
+      // And the board offers the two ways on that the design draws.
+      expect(main.getByRole('link', { name: 'Naar de geschiedenis' })).toBeInTheDocument();
+      expect(main.getByRole('link', { name: 'Nieuwe partij' })).toBeInTheDocument();
+      expect(main.queryByRole('link', { name: /Ronde \d+ invoeren/ })).not.toBeInTheDocument();
+    });
+  }
+
+  it('puts the winner first, whatever order the teams were dealt in', async () => {
+    const ctx = await newContext();
+    const game = await seedGame(ctx.services, 3);
+    await playUntilWon(ctx.services, game);
+    renderAt(ctx, `/games/${game.id}`);
+
+    const main = within(await screen.findByRole('main'));
+    await main.findByRole('heading', { name: 'Uitslag' });
+
+    const order = main.getAllByText(/^(Rood|Groen|Blauw)$/).map((node) => node.textContent);
+    expect(order[0]).toBe('Groen');
+  });
+});
+
+describe('de wizard toont zijn stappen in de rail', () => {
+  it('marks the first step as the one being answered', async () => {
+    const ctx = await newContext();
+    renderAt(ctx, '/new');
+
+    const steps = within(await screen.findByRole('list', { name: 'Stappen' }));
+    const items = steps.getAllByRole('listitem');
+    expect(items).toHaveLength(3);
+    expect(items[0]).toHaveAttribute('aria-current', 'step');
+    expect(items[1]).not.toHaveAttribute('aria-current');
+    // The numbering is decoration; what matters is the three step names.
+    expect(items[0]).toHaveTextContent('Variant');
+    expect(items[1]).toHaveTextContent('Wie zit waar?');
+    expect(items[2]).toHaveTextContent('Huisregels');
+  });
+
+  it('spells out the choice once it is made and moves on', async () => {
+    const user = userEvent.setup();
+    const ctx = await newContext();
+    renderAt(ctx, '/new');
+
+    // Two-Handed describes itself as "Classic Canasta voor twee spelers", so
+    // take the card whose own name it is: the first one.
+    const main = within(await screen.findByRole('main'));
+    const cards = await main.findAllByRole('button', { name: /Classic Canasta/ });
+    await user.click(cards[0]!);
+
+    const steps = within(await screen.findByRole('list', { name: 'Stappen' }));
+    const items = steps.getAllByRole('listitem');
+    expect(items[0]).toHaveTextContent('Variant · Classic Canasta');
+    expect(items[0]).not.toHaveAttribute('aria-current');
+    expect(items[1]).toHaveAttribute('aria-current', 'step');
+  });
+
+  it('leaves the rail alone outside the wizard', async () => {
+    const ctx = await newContext();
+    const game = await seedGame(ctx.services);
+    renderAt(ctx, `/games/${game.id}`);
+
+    await screen.findByRole('heading', { level: 1 });
+    expect(screen.queryByRole('list', { name: 'Stappen' })).not.toBeInTheDocument();
+  });
+});
+
+describe('de teamschakelaar volgt het aantal deelnemers', () => {
+  for (const [teamCount, placement] of [
+    [3, 'inline'],
+    [4, 'inline'],
+    [6, 'own row'],
+  ] as const) {
+    it(`keeps ${teamCount} chips ${placement}`, async () => {
+      const ctx = await newContext();
+      const game = await seedGame(ctx.services, teamCount);
+      renderAt(ctx, `/games/${game.id}/round`);
+
+      const tablist = await screen.findByRole('tablist', { name: 'Team kiezen' });
+      expect(within(tablist).getAllByRole('tab')).toHaveLength(teamCount);
+
+      if (placement === 'inline') {
+        expect(tablist.className).toContain('md:order-2');
+      } else {
+        expect(tablist.className).toContain('md:order-4');
+        expect(tablist.className).toContain('auto-fit');
+      }
+    });
+  }
 });

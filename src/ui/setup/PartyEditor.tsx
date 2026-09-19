@@ -151,7 +151,8 @@ export function PartyEditor({
         side by side. A viewport breakpoint would get this wrong the moment the
         block is narrower than the window it lives in.
       */}
-      <Block className="@container px-4 py-1.5 @[34rem]:grid @[34rem]:grid-cols-2 @[34rem]:gap-x-6 @[34rem]:px-5">
+      <div className="@container">
+      <Block className="px-4 py-1.5 @[34rem]:grid @[34rem]:grid-cols-2 @[34rem]:gap-x-8 @[34rem]:px-6">
         <SectionLabel className="block pb-1 pt-2.5 @[34rem]:col-span-2">Spelers</SectionLabel>
 
         <div className="flex min-h-touch items-center justify-between gap-3 border-t border-border py-3">
@@ -215,6 +216,7 @@ export function PartyEditor({
           ) : null}
         </div>
       </Block>
+      </div>
 
       {draft.mode === 'individual' ? (
         /*
@@ -223,9 +225,10 @@ export function PartyEditor({
          * eight players used to mean eight separate cards, each repeating the
          * same name three times over.
          */
-        <Block className="@container px-4 py-1.5 @[34rem]:px-5">
+        <div className="@container">
+        <Block className="px-4 py-1.5 @[34rem]:px-6">
           <SectionLabel className="block pb-1 pt-2.5">Wie spelen er mee?</SectionLabel>
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(14rem,1fr))] @[34rem]:gap-x-6">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(14rem,1fr))] @[34rem]:gap-x-8">
             {draft.teamSeats.map((seats, teamIndex) => (
               <div key={teamIndex} className="@container flex items-center gap-2">
                 <Suit index={teamIndex} className="w-3.5 shrink-0 text-center text-sm" />
@@ -234,6 +237,7 @@ export function PartyEditor({
             ))}
           </div>
         </Block>
+        </div>
       ) : (
         /*
          * Teams side by side as soon as there is room for them. `auto-fit`
@@ -242,7 +246,7 @@ export function PartyEditor({
          */
         <div className="grid grid-cols-[repeat(auto-fit,minmax(18rem,1fr))] gap-3">
           {draft.teamSeats.map((seats, teamIndex) => (
-            <Block key={teamIndex} className="@container px-4 py-1.5">
+            <Block key={teamIndex} className="@container px-4 py-1.5 lg:rounded-[1.25rem] lg:px-4.5">
               <div className="flex items-center gap-2 border-b border-border py-2.5">
                 <Suit index={teamIndex} className="text-sm" />
                 <input

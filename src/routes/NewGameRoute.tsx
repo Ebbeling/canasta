@@ -16,6 +16,7 @@ import { useCommand } from '@/hooks/useCommand';
 import { useLiveResult } from '@/hooks/useLiveResult';
 import { AppBar } from '@/ui/app/AppBar';
 import { PageBody } from '@/ui/app/Page';
+import { usePublishRailSteps } from '@/ui/app/railSteps';
 import { ChevronRight } from '@/ui/common/icons';
 import { Suit } from '@/ui/common/Suit';
 import { SettingsEditor } from '@/ui/rules/SettingsEditor';
@@ -41,6 +42,13 @@ const STEPS: Step[] = ['ruleset', 'players', 'rules'];
 
 const STEP_TITLES: Record<Step, string> = {
   ruleset: 'Welke variant spelen jullie?',
+  players: 'Wie zit waar?',
+  rules: 'Huisregels',
+};
+
+/** The same steps, short enough for the rail to hold them. */
+const RAIL_STEP_LABELS: Record<Step, string> = {
+  ruleset: 'Variant',
   players: 'Wie zit waar?',
   rules: 'Huisregels',
 };
@@ -207,6 +215,18 @@ export function NewGameRoute() {
   }
 
   const stepIndex = STEPS.indexOf(step);
+
+  // The rail shows the same three steps the progress bar does, with the choice
+  // already made spelled out on the step that made it — the design's "Variant ·
+  // Classic". Nothing about the wizard's state is duplicated here; this is the
+  // state it already holds, said in the rail's words.
+  usePublishRailSteps(
+    STEPS.map((name, index) => ({
+      label: name === 'ruleset' && chosen ? `Variant · ${chosen.name}` : RAIL_STEP_LABELS[name],
+      done: index < stepIndex,
+      current: index === stepIndex,
+    })),
+  );
   const blocked = setupIssues.some((issue) => issue.severity === 'error');
 
   /**

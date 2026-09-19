@@ -1,6 +1,7 @@
 import { Outlet, useRouteError } from 'react-router';
 import { DesktopRail } from '@/ui/app/DesktopRail';
 import { PageBody } from '@/ui/app/Page';
+import { RailStepsProvider } from '@/ui/app/RailStepsProvider';
 import { ErrorPanel, LinkButton, PageTitle } from '@/ui/common/primitives';
 
 /**
@@ -18,6 +19,7 @@ import { ErrorPanel, LinkButton, PageTitle } from '@/ui/common/primitives';
  */
 export function AppShell() {
   return (
+    <RailStepsProvider>
     <div className="min-h-dvh md:grid md:grid-cols-[auto_minmax(0,1fr)]">
       <a
         href="#inhoud"
@@ -32,6 +34,7 @@ export function AppShell() {
         <Outlet />
       </main>
     </div>
+    </RailStepsProvider>
   );
 }
 

@@ -246,9 +246,8 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
     Boolean(preview?.canSave) && Boolean(preview?.requiresConfirmation) && !state.warningsAccepted;
   const canSave = Boolean(preview?.canSave) && save.state !== 'running';
   const saveLabel = blockedByWarnings ? 'Toch opslaan' : 'Ronde opslaan';
-  // How far the round has got, and whether the switcher still fits on the
-  // header line. The design keeps it there up to four teams.
-  const filledCount = preview?.teams.filter((entry) => entry.lines.length > 0).length ?? 0;
+  // Whether the switcher still fits on the header line. The design keeps it
+  // there up to four teams and gives it a row of its own beyond that.
   const ownRow = game.teams.length > 4;
   const activePreview = preview?.teams.find((entry) => entry.teamId === team?.id);
 
@@ -320,7 +319,7 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
                 {state.dirty ? (
                   <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-warn" />
                 ) : null}
-                {filledCount} van {game.teams.length} ingevuld
+                {preview?.filledLabel}
               </p>
             </div>
             <span className="size-10 shrink-0 md:hidden" aria-hidden="true" />
@@ -332,14 +331,13 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
             /*
              * A scrolling strip on a phone, where there is room for two chips
              * at a time. From `md` it sits on the header line while it fits,
-             * and from five teams it takes its own row and divides that row
-             * evenly — one column per team, built from the game rather than
-             * written down.
+             * and from five teams it takes its own row. That row divides itself
+             * by `auto-fit`, so six chips stand side by side and eight wrap
+             * onto a second line without either number appearing here.
              */
-            style={ownRow ? { gridTemplateColumns: `repeat(${game.teams.length}, minmax(0,1fr))` } : undefined}
             className={`flex snap-x gap-1.5 overflow-x-auto rounded-btn bg-panel2 p-1 ${
               ownRow
-                ? 'md:order-4 md:grid md:w-full md:overflow-visible'
+                ? 'md:order-4 md:grid md:w-full md:grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))] md:overflow-visible'
                 : 'md:order-2 md:shrink-0 md:overflow-visible'
             }`}
           >
