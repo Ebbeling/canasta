@@ -5,7 +5,7 @@ import type { ImportPreview, ParseFailure } from '@/application/transfer/parseEx
 import { useServices } from '@/app/servicesContext';
 import { useCommand } from '@/hooks/useCommand';
 import { readTextFile } from '@/ui/common/files';
-import { Button, Card, ErrorPanel, Muted, SectionTitle } from '@/ui/common/primitives';
+import { Badge, Block, Button, ErrorPanel, Muted, SectionLabel } from '@/ui/common/primitives';
 
 const STATUS_LABELS: Record<ImportPreview['status'], string> = {
   active: 'Bezig',
@@ -71,32 +71,33 @@ export function ImportGameSection() {
   }
 
   return (
-    <Card>
-      <SectionTitle>Partij importeren</SectionTitle>
-      <Muted>
-        Kies een eerder geëxporteerd bestand. Er wordt altijd een nieuwe partij aangemaakt; een
-        bestaande partij wordt nooit overschreven.
-      </Muted>
+    <section className="flex flex-col gap-2">
+      <SectionLabel className="px-1">Partij importeren</SectionLabel>
 
-      <div className="mt-3">
-        <label htmlFor="import-bestand" className="text-sm font-medium">
-          Exportbestand (.json)
-        </label>
-        <input
-          id="import-bestand"
-          ref={fileInput}
-          type="file"
-          accept="application/json,.json"
-          className="mt-1 block w-full text-sm"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) void handleFile(file);
-          }}
-        />
-      </div>
+      <Block className="flex flex-col gap-3 px-4 py-4">
+        <Muted>
+          Kies een eerder geëxporteerd bestand. Er wordt altijd een nieuwe partij aangemaakt; een
+          bestaande partij wordt nooit overschreven.
+        </Muted>
 
-      {failure ? (
-        <div className="mt-3">
+        <div>
+          <label htmlFor="import-bestand" className="text-body font-medium">
+            Exportbestand (.json)
+          </label>
+          <input
+            id="import-bestand"
+            ref={fileInput}
+            type="file"
+            accept="application/json,.json"
+            className="mt-1.5 block w-full text-sm text-muted file:mr-3 file:min-h-10 file:cursor-pointer file:rounded-tile file:border-[1.5px] file:border-border file:bg-panel file:px-3.5 file:text-sm file:font-semibold file:text-ink"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void handleFile(file);
+            }}
+          />
+        </div>
+
+        {failure ? (
           <ErrorPanel title="Dit bestand kan niet worden geïmporteerd.">
             <p>{failure.message}</p>
             {failure.issues && failure.issues.length > 1 ? (
@@ -107,46 +108,48 @@ export function ImportGameSection() {
               </ul>
             ) : null}
           </ErrorPanel>
-        </div>
-      ) : null}
+        ) : null}
 
-      {staged ? (
-        <div className="mt-3 rounded-xl border border-[--color-border] bg-[--color-panel-muted] p-3">
-          <p className="font-medium">{staged.preview.gameName}</p>
-          <ul className="mt-1 text-sm text-[--color-ink-muted]">
-            <li>{staged.preview.ruleSetName}</li>
-            <li>
-              {staged.preview.playerCount} spelers · {staged.preview.teamCount} teams ·{' '}
-              {staged.preview.roundCount === 1 ? '1 ronde' : `${staged.preview.roundCount} rondes`}
-            </li>
-            <li>Status: {STATUS_LABELS[staged.preview.status]}</li>
-            <li>Geëxporteerd op: {staged.preview.exportedAt.slice(0, 10)}</li>
-          </ul>
+        {staged ? (
+          <div className="rounded-control border border-border bg-panel2 px-3.5 py-3">
+            <div className="flex items-start justify-between gap-2">
+              <p className="min-w-0 truncate font-semibold">{staged.preview.gameName}</p>
+              <Badge tone="neutral">{STATUS_LABELS[staged.preview.status]}</Badge>
+            </div>
+            <ul className="mt-1 text-note text-muted">
+              <li>{staged.preview.ruleSetName}</li>
+              <li>
+                {staged.preview.playerCount} spelers · {staged.preview.teamCount} teams ·{' '}
+                {staged.preview.roundCount === 1 ? '1 ronde' : `${staged.preview.roundCount} rondes`}
+              </li>
+              <li>Geëxporteerd op: {staged.preview.exportedAt.slice(0, 10)}</li>
+            </ul>
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button
-              variant="primary"
-              disabled={runImport.state === 'running'}
-              onClick={() => void confirmImport()}
-            >
-              Importeren
-            </Button>
-            <Button onClick={reset}>Annuleren</Button>
+            <div className="mt-3 flex gap-2">
+              <Button
+                variant="primary"
+                size="md"
+                block
+                disabled={runImport.state === 'running'}
+                onClick={() => void confirmImport()}
+              >
+                Importeren
+              </Button>
+              <Button variant="ghost" size="md" onClick={reset}>
+                Annuleren
+              </Button>
+            </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      {runImport.result && !runImport.result.ok ? (
-        <div className="mt-3">
+        {runImport.result && !runImport.result.ok ? (
           <ErrorPanel title="Importeren is niet gelukt.">{runImport.result.message}</ErrorPanel>
-        </div>
-      ) : null}
+        ) : null}
 
-      {runImport.state === 'failed' ? (
-        <div className="mt-3">
+        {runImport.state === 'failed' ? (
           <ErrorPanel title="Importeren is niet gelukt.">{runImport.error?.message}</ErrorPanel>
-        </div>
-      ) : null}
-    </Card>
+        ) : null}
+      </Block>
+    </section>
   );
 }

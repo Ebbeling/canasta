@@ -1,82 +1,163 @@
 import { Link } from 'react-router';
-import { useGameList, useLastActiveGame } from '@/hooks/useGameData';
+import type { GameSummary } from '@/application/ports';
+import { useGameList, useLastActiveGame, useScoreboard } from '@/hooks/useGameData';
+import { ChevronRight, Plus, Sliders } from '@/ui/common/icons';
+import { Suit } from '@/ui/common/Suit';
 import {
+  Block,
   Card,
   EmptyState,
+  IconLink,
   LinkButton,
   LoadingState,
-  Muted,
-  PageTitle,
-  SectionTitle,
+  Score,
+  SectionLabel,
 } from '@/ui/common/primitives';
 import { GameSummaryRow } from './GameSummaryRow';
+
+/** The wordmark, with the four suits as the app's only decoration. */
+function Masthead() {
+  return (
+    <div className="flex items-start justify-between gap-3 pt-5">
+      <div>
+        <h1 className="font-display text-[2.5rem] font-semibold leading-none tracking-[-0.04em]">
+          Canasta
+        </h1>
+        <p aria-hidden="true" className="mt-1.5 text-sm tracking-[0.18em] text-muted">
+          ♠ <span className="text-heart">♥</span> ♣ <span className="text-heart">♦</span>
+        </p>
+      </div>
+      <IconLink
+        to="/settings"
+        label="Instellingen"
+        className="size-11 rounded-control border border-border bg-panel"
+      >
+        <Sliders />
+      </IconLink>
+    </div>
+  );
+}
+
+/**
+ * The game you are most likely to want: both totals at a glance and one button
+ * back into it. The scoreboard view model is what supplies the numbers — the
+ * game summary on its own does not carry scores.
+ */
+function ResumeCard({ summary }: { summary: GameSummary }) {
+  const board = useScoreboard(summary.id);
+
+  return (
+    <Card className="flex flex-col gap-3.5 px-4.5 pb-4 pt-4.5">
+      <div className="flex items-center justify-between gap-3">
+        <SectionLabel as="h2">
+          Bezig
+          {summary.roundCount > 0 ? ` · na ronde ${summary.roundCount}` : ' · nog geen ronde'}
+        </SectionLabel>
+        <span className="truncate text-caption text-muted">{summary.ruleSetName}</span>
+      </div>
+
+      {board.status === 'ready' ? (
+        <div className="grid grid-cols-2 gap-3">
+          {board.data.teams.map((team, index) => (
+            <div key={team.teamId} className={index === 1 ? 'min-w-0 text-right' : 'min-w-0'}>
+              <div
+                className={`flex items-center gap-1.5 text-note font-semibold ${
+                  index === 1 ? 'justify-end' : ''
+                }`}
+              >
+                {index === 1 ? null : <Suit index={index} />}
+                <span className="truncate">{team.name}</span>
+                {index === 1 ? <Suit index={index} /> : null}
+              </div>
+              <Score className="block text-[2.25rem] leading-[1.05]">{team.totalText}</Score>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-muted">{summary.teamNames.join(' · ')}</p>
+      )}
+
+      <LinkButton to={`/games/${summary.id}`} variant="primary" size="lg" block>
+        Verder spelen
+        <ChevronRight />
+      </LinkButton>
+    </Card>
+  );
+}
+
+/** Three fanned cards — the design's illustration for "nothing here yet". */
+function CardFan() {
+  const face = 'flex h-15 w-11 items-center justify-center rounded-lg border border-border bg-panel text-[1.375rem] shadow-soft';
+  return (
+    <div className="flex" aria-hidden="true">
+      <span className={`${face} translate-x-2 -rotate-[10deg]`}>♠</span>
+      <span className={`${face} relative z-10 text-heart`}>♥</span>
+      <span className={`${face} -translate-x-2 rotate-[10deg]`}>♣</span>
+    </div>
+  );
+}
 
 export function HomeRoute() {
   const resume = useLastActiveGame();
   const recent = useGameList({ limit: 5 });
 
+  const isEmpty = recent.status === 'ready' && recent.data.length === 0;
+
   return (
-    <div className="space-y-6">
-      <PageTitle>Canasta</PageTitle>
+    <div className="flex flex-1 flex-col gap-5.5 pb-6">
+      <Masthead />
 
-      {resume.status === 'ready' ? (
-        <Card>
-          <SectionTitle>Verder spelen</SectionTitle>
-          <div className="mt-2">
-            <GameSummaryRow summary={resume.data} />
-          </div>
-          <div className="mt-3">
-            <LinkButton to={`/games/${resume.data.id}`} variant="primary">
-              Verder spelen
-            </LinkButton>
-          </div>
-        </Card>
-      ) : null}
-
-      <LinkButton to="/new" variant="primary" className="w-full">
-        Nieuwe partij
-      </LinkButton>
-
-      <section className="space-y-2">
-        <SectionTitle>Recente partijen</SectionTitle>
-
-        {recent.status === 'loading' ? <LoadingState /> : null}
-
-        {recent.status === 'ready' && recent.data.length === 0 ? (
+      {isEmpty ? (
+        <div className="flex flex-1 flex-col justify-between gap-5">
           <EmptyState
             title="Nog geen partijen"
-            description="Start een nieuwe partij om te beginnen met tellen."
-            action={
-              <LinkButton to="/new" variant="primary">
-                Nieuwe partij
-              </LinkButton>
-            }
+            description="Start een nieuwe Canasta-partij en houd de score automatisch bij."
+            illustration={<CardFan />}
           />
-        ) : null}
+          <LinkButton to="/new" variant="primary" size="xl" block>
+            <Plus />
+            Nieuwe partij
+          </LinkButton>
+        </div>
+      ) : null}
 
-        {recent.status === 'ready' && recent.data.length > 0 ? (
-          <ul className="space-y-2">
+      {resume.status === 'ready' ? <ResumeCard summary={resume.data} /> : null}
+
+      {!isEmpty ? (
+        <LinkButton to="/new" variant="secondary" size="lg" block className="rounded-block">
+          <Plus />
+          Nieuwe partij
+        </LinkButton>
+      ) : null}
+
+      {recent.status === 'loading' ? <LoadingState /> : null}
+
+      {recent.status === 'ready' && recent.data.length > 0 ? (
+        <section className="flex flex-col gap-2.5">
+          <div className="flex items-baseline justify-between gap-3">
+            <SectionLabel>Recente partijen</SectionLabel>
+            <Link
+              to="/games"
+              className="inline-flex min-h-touch items-center text-note font-semibold text-accent"
+            >
+              Alle partijen
+            </Link>
+          </div>
+
+          <Block as="ul" className="overflow-hidden">
             {recent.data.map((summary) => (
-              <li key={summary.id}>
+              <li key={summary.id} className="border-t border-border first:border-t-0">
                 <Link
                   to={`/games/${summary.id}`}
-                  className="block rounded-2xl border border-[--color-border] bg-[--color-panel] p-4 hover:bg-[--color-panel-muted]"
+                  className="flex min-h-15 items-center gap-3 px-4 py-3 transition-colors hover:bg-panel2"
                 >
                   <GameSummaryRow summary={summary} />
                 </Link>
               </li>
             ))}
-          </ul>
-        ) : null}
-
-        {recent.status === 'ready' && recent.data.length > 0 ? (
-          <Muted>
-            <Link to="/games" className="underline">
-              Alle partijen bekijken
-            </Link>
-          </Muted>
-        ) : null}
-      </section>
+          </Block>
+        </section>
+      ) : null}
     </div>
   );
 }

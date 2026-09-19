@@ -18,7 +18,19 @@ import { useGame } from '@/hooks/useGameData';
 import { useCommand } from '@/hooks/useCommand';
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
 import { FieldControl } from '@/ui/fields/FieldControl';
-import { Button, Card, ErrorPanel, LoadingState, Muted, PageTitle } from '@/ui/common/primitives';
+import { Check, Close } from '@/ui/common/icons';
+import { Suit } from '@/ui/common/Suit';
+import { suitFor } from '@/ui/common/suits';
+import {
+  Block,
+  Button,
+  ErrorPanel,
+  IconButton,
+  LoadingState,
+  Score,
+  SectionLabel,
+  StickyActions,
+} from '@/ui/common/primitives';
 import { IssueChannels } from '@/ui/round/IssueChannels';
 import { BreakdownList } from '@/ui/round/BreakdownList';
 import { GameNotFound } from './GameNotFound';
@@ -235,68 +247,106 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
   }
 
   return (
-    <div className="space-y-4">
-      <PageTitle>
-        {mode === 'correct' ? `Ronde ${roundNumber} corrigeren` : `Ronde ${roundNumber}`}
-      </PageTitle>
+    <div className="flex flex-1 flex-col">
+      {/*
+       * Entering a round is a focus mode: no bottom navigation, one way out,
+       * and the team switcher plus both running totals pinned to the top so the
+       * score never scrolls away while the fields below do.
+       */}
+      <div className="sticky top-0 z-30 -mx-4 flex flex-col gap-2.5 border-b border-border bg-panel px-3 pb-3 pt-2.5 sm:-mx-6 sm:px-5">
+        <div className="flex items-center gap-2">
+          <IconButton label="Ronde sluiten" onClick={() => navigate(`/games/${gameId}`)}>
+            <Close />
+          </IconButton>
+          <div className="flex-1 text-center">
+            <h1 className="text-body font-semibold">
+              {mode === 'correct' ? `Ronde ${roundNumber} corrigeren` : `Ronde ${roundNumber}`}
+            </h1>
+            <p className="flex items-center justify-center gap-1.5 text-xs text-muted">
+              {state.dirty ? (
+                <>
+                  <span aria-hidden="true" className="size-1.5 rounded-full bg-warn" />
+                  Concept bewaard · nog niet opgeslagen
+                </>
+              ) : (
+                game.effectiveRuleSet.name
+              )}
+            </p>
+          </div>
+          <span className="size-10 shrink-0" aria-hidden="true" />
+        </div>
 
-      {/* Sticky score header: both teams and their live total, always visible. */}
-      <div className="sticky top-0 z-10 -mx-4 border-b border-[--color-border] bg-[--color-surface] px-4 py-2">
-        <div role="tablist" aria-label="Team kiezen" className="flex gap-2">
+        <div
+          role="tablist"
+          aria-label="Team kiezen"
+          className="grid grid-cols-2 gap-1.5 rounded-btn bg-panel2 p-1"
+        >
           {game.teams.map((item, index) => {
             const itemPreview = preview?.teams.find((entry) => entry.teamId === item.id);
+            const selected = index === activeTeam;
+            const members = game.players
+              .filter((player) => item.memberIds.includes(player.id))
+              .map((player) => player.name);
+
             return (
               <button
                 key={item.id}
                 role="tab"
                 type="button"
-                aria-selected={index === activeTeam}
-                className={`min-h-[var(--spacing-touch)] flex-1 rounded-xl border px-3 text-left ${
-                  index === activeTeam
-                    ? 'border-[--color-accent] bg-[--color-panel]'
-                    : 'border-[--color-border]'
+                aria-selected={selected}
+                className={`flex min-h-14 items-center justify-between gap-2 rounded-tile px-3 py-1.5 text-left transition-colors ${
+                  selected
+                    ? 'border-[1.5px] border-accent bg-panel shadow-soft'
+                    : 'border-[1.5px] border-transparent text-muted'
                 }`}
                 onClick={() => setActiveTeam(index)}
               >
-                <span className="block truncate text-sm">{item.name}</span>
-                <span className="block text-lg font-semibold tabular">
-                  {itemPreview?.totalText ?? '0'}
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-1 text-caption font-semibold">
+                    <Suit index={index} />
+                    <span className="truncate">{item.name}</span>
+                  </span>
+                  {members.length > 0 ? (
+                    <span className="block truncate text-meta text-muted">
+                      {members.join(' & ')}
+                    </span>
+                  ) : null}
                 </span>
+                <Score className="shrink-0 text-2xl">{itemPreview?.totalText ?? '0'}</Score>
               </button>
             );
           })}
         </div>
       </div>
 
-      {save.state === 'failed' ? (
-        <ErrorPanel title="Opslaan is niet gelukt. Je invoer is bewaard.">
-          {save.error?.message}
-        </ErrorPanel>
-      ) : null}
+      <div className="flex flex-1 flex-col gap-3 pt-4">
+        {save.state === 'failed' ? (
+          <ErrorPanel title="Opslaan is niet gelukt. Je invoer is bewaard.">
+            {save.error?.message}
+          </ErrorPanel>
+        ) : null}
 
-      {save.result && !save.result.ok && save.result.reason === 'validation' ? (
-        <ErrorPanel title="Deze ronde kon niet worden opgeslagen.">
-          <ul className="list-disc pl-5">
-            {save.result.issues.map((issue) => (
-              <li key={issue.code}>{issue.message}</li>
-            ))}
-          </ul>
-        </ErrorPanel>
-      ) : null}
+        {save.result && !save.result.ok && save.result.reason === 'validation' ? (
+          <ErrorPanel title="Deze ronde kon niet worden opgeslagen.">
+            <ul className="list-disc pl-5">
+              {save.result.issues.map((issue) => (
+                <li key={issue.code}>{issue.message}</li>
+              ))}
+            </ul>
+          </ErrorPanel>
+        ) : null}
 
-      {team ? (
-        <form className="space-y-5" onSubmit={(event) => event.preventDefault()}>
-          {layout.map((group) => (
-            <Card key={group.category}>
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[--color-ink-muted]">
-                {group.title}
-              </h2>
-              <div className="space-y-4">
+        {team ? (
+          <form className="flex flex-col gap-3" onSubmit={(event) => event.preventDefault()}>
+            {layout.map((group) => (
+              <Block key={group.category} className="px-4 py-1.5">
+                <SectionLabel className="block pb-1 pt-2.5">{group.title}</SectionLabel>
                 {group.fields.map((field) => (
                   <FieldControl
                     key={field.id}
                     field={field}
                     idPrefix={`${team.id}__${field.id}`}
+                    context={`${suitFor(activeTeam)} ${team.name} · ${group.title}`}
                     value={
                       (state.inputs[team.id]
                         ? readFieldValue(state.inputs[team.id]!, field.id)
@@ -306,36 +356,53 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
                     onChange={(value) => dispatch({ type: 'set', teamId: team.id, field, value })}
                   />
                 ))}
-              </div>
-            </Card>
-          ))}
-        </form>
-      ) : null}
+              </Block>
+            ))}
+          </form>
+        ) : null}
 
-      {preview ? (
-        <>
-          <Card>
-            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-[--color-ink-muted]">
-              Deze ronde — {team?.name}
-            </h2>
-            {teamPreview ? <BreakdownList team={teamPreview} /> : null}
-          </Card>
+        {preview ? (
+          <>
+            {teamPreview ? (
+              <BreakdownList
+                team={teamPreview}
+                title={
+                  <>
+                    Deze ronde · <Suit index={activeTeam} /> {team?.name}
+                  </>
+                }
+              />
+            ) : null}
 
-          <IssueChannels
-            errors={preview.errors}
-            warnings={preview.warnings}
-            advisories={preview.advisories}
-          />
-        </>
-      ) : null}
+            <IssueChannels
+              errors={preview.errors}
+              warnings={preview.warnings}
+              advisories={preview.advisories}
+            />
+          </>
+        ) : null}
+      </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Button variant="primary" disabled={!canSave} onClick={() => void handleSave()}>
+      <StickyActions>
+        <Button variant="ghost" size="md" onClick={() => navigate(`/games/${gameId}`)}>
+          Annuleren
+        </Button>
+        <Button
+          variant="primary"
+          size="lg"
+          block
+          disabled={!canSave}
+          onClick={() => void handleSave()}
+        >
+          <Check size={18} />
           {blockedByWarnings ? 'Toch opslaan' : 'Ronde opslaan'}
         </Button>
-        <Button onClick={() => navigate(`/games/${gameId}`)}>Annuleren</Button>
-        {!preview?.canSave ? <Muted>Los eerst de fouten op.</Muted> : null}
-      </div>
+        {!preview?.canSave ? (
+          <span className="sr-only" role="status">
+            Los eerst de fouten op.
+          </span>
+        ) : null}
+      </StickyActions>
     </div>
   );
 }

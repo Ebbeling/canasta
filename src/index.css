@@ -3,64 +3,153 @@
 /*
  * Tailwind v4 is CSS-first: there is no tailwind.config.js.
  *
- * The theme follows the system by default. `/instellingen` can override it by
+ * Every colour, radius, shadow and touch target in the app is a *named theme
+ * token* declared in `@theme` below. Tailwind turns each one into a real
+ * utility — `--color-accent` becomes `bg-accent`, `--radius-card` becomes
+ * `rounded-card` — so components never write an arbitrary value like
+ * `bg-[var(--color-accent)]`. That is deliberate: the app used to spell those
+ * by hand with the v3 shorthand `bg-[--color-accent]`, which v4 silently drops,
+ * and the only durable fix is to stop hand-writing variable references at all.
+ *
+ * Theming still works because Tailwind emits `var(--color-accent)` in the
+ * generated utility. Redefining the variable in a darker scope below re-colours
+ * every utility that uses it, without generating a second set of classes.
+ */
+
+/*
+ * Self-hosted so the app keeps its typography offline and makes no third-party
+ * request. Both are variable fonts, latin subset. They live under `src/` rather
+ * than `public/` on purpose: Vite then fingerprints them and rewrites the URL
+ * against `base`, which is what keeps them resolving under `/canasta/`. The
+ * build output is still .woff2, so the service worker precaches them already.
+ */
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('./assets/fonts/bricolage-grotesque-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF,
+    U+FFFD;
+}
+
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 100 1000;
+  font-display: swap;
+  src: url('./assets/fonts/dm-sans-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF,
+    U+FFFD;
+}
+
+/*
+ * The theme follows the system by default. `/settings` can override it by
  * putting `data-theme="light"` or `data-theme="dark"` on <html>, so the variant
  * below matches both the media query and the explicit attribute.
  */
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
 @theme {
-  --font-sans:
-    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-sans: 'DM Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Titles and every score. Tabular by design, so digits never jitter. */
+  --font-display: 'Bricolage Grotesque', 'DM Sans', ui-sans-serif, system-ui, sans-serif;
 
-  /* Light palette — the default. */
-  --color-surface: #f7f7f5;
-  --color-panel: #ffffff;
-  --color-panel-muted: #f0f0ee;
-  --color-border: #d9d9d4;
-  --color-ink: #1a1c20;
-  --color-ink-muted: #5b6069;
-  --color-accent: #1f6f5c;
+  --tracking-display: -0.03em;
+  --tracking-title: -0.02em;
+  --tracking-label: 0.08em;
+
+  /*
+   * The design's small type scale. Tailwind's default steps jump 12 → 14 → 16,
+   * which is too coarse for a dense scorecard, so these five are named instead
+   * of being written as arbitrary values at each of the ~55 places they occur.
+   */
+  --text-micro: 0.6875rem; /* 11px — badges, table headers */
+  --text-meta: 0.72rem; /* 11.5px — the quietest supporting line */
+  --text-caption: 0.78rem; /* 12.5px — member names, meta lines */
+  --text-note: 0.8125rem; /* 13px — notes and inline help */
+  --text-body: 0.9375rem; /* 15px — field labels and list titles */
+
+  /* Light palette — warm cream over evergreen. */
+  --color-surface: #f4efe7;
+  --color-panel: #fffcf8;
+  --color-panel2: #ece5d9;
+  --color-border: #e1d8ca;
+  --color-ink: #221d18;
+  --color-muted: #6f675d;
+  --color-accent: #2e6b52;
   --color-accent-ink: #ffffff;
-  --color-positive: #1a6b3c;
-  --color-negative: #a3352b;
-  --color-warning: #8a5a00;
+  --color-accent-soft: #dceae1;
+  /* The second team's identity colour, and every negative number. */
+  --color-heart: #b8412e;
+  --color-warn: #8f5c00;
+  --color-warn-soft: #f6e8c9;
+  --color-neg-soft: #f6ddd7;
+  /* Scrim behind a bottom sheet. */
+  --color-dim: rgba(34, 29, 24, 0.45);
 
-  /* Touch targets: 44px is the accessibility floor, 56px for round entry. */
+  --radius-tile: 0.75rem;
+  --radius-control: 0.875rem;
+  --radius-btn: 1rem;
+  --radius-block: 1.125rem;
+  --radius-list: 1.25rem;
+  --radius-card: 1.5rem;
+  --radius-sheet: 1.75rem;
+
+  --shadow-soft:
+    0 1px 2px rgba(60, 40, 20, 0.06), 0 10px 28px -14px rgba(60, 40, 20, 0.25);
+  --shadow-sheet: 0 -12px 40px rgba(0, 0, 0, 0.25);
+
+  /* Touch targets: 44px is the accessibility floor, 56px for a form action,
+   * 60px for the one primary action on a screen. */
   --spacing-touch: 2.75rem;
   --spacing-touch-lg: 3.5rem;
+  --spacing-action: 3.75rem;
+  /* The design is drawn at 390px; this is the column it lives in. */
+  --container-page: 32rem;
+  --container-wide: 46rem;
 }
 
 /* Dark palette. Applied by the media query unless light is forced. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --color-surface: #12151b;
-    --color-panel: #1a1e26;
-    --color-panel-muted: #222730;
-    --color-border: #333a45;
-    --color-ink: #eceef2;
-    --color-ink-muted: #9aa3b0;
-    --color-accent: #4bbf9a;
-    --color-accent-ink: #0d1117;
-    --color-positive: #62c48a;
-    --color-negative: #f08d82;
-    --color-warning: #e0b15c;
+    --color-surface: #16130f;
+    --color-panel: #211d18;
+    --color-panel2: #2c261f;
+    --color-border: #3b342b;
+    --color-ink: #f3ece2;
+    --color-muted: #a89e91;
+    --color-accent: #6dbe95;
+    --color-accent-ink: #0f1a15;
+    --color-accent-soft: #1e3a2d;
+    --color-heart: #e9836f;
+    --color-warn: #e3b45e;
+    --color-warn-soft: #3a2e14;
+    --color-neg-soft: #46231c;
+    --color-dim: rgba(0, 0, 0, 0.6);
+    --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 28px -14px rgba(0, 0, 0, 0.6);
   }
 }
 
 /* Manual override from the settings screen. */
 :root[data-theme='dark'] {
-  --color-surface: #12151b;
-  --color-panel: #1a1e26;
-  --color-panel-muted: #222730;
-  --color-border: #333a45;
-  --color-ink: #eceef2;
-  --color-ink-muted: #9aa3b0;
-  --color-accent: #4bbf9a;
-  --color-accent-ink: #0d1117;
-  --color-positive: #62c48a;
-  --color-negative: #f08d82;
-  --color-warning: #e0b15c;
+  --color-surface: #16130f;
+  --color-panel: #211d18;
+  --color-panel2: #2c261f;
+  --color-border: #3b342b;
+  --color-ink: #f3ece2;
+  --color-muted: #a89e91;
+  --color-accent: #6dbe95;
+  --color-accent-ink: #0f1a15;
+  --color-accent-soft: #1e3a2d;
+  --color-heart: #e9836f;
+  --color-warn: #e3b45e;
+  --color-warn-soft: #3a2e14;
+  --color-neg-soft: #46231c;
+  --color-dim: rgba(0, 0, 0, 0.6);
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 28px -14px rgba(0, 0, 0, 0.6);
 }
 
 html {
@@ -75,6 +164,7 @@ body {
   font-family: var(--font-sans);
   /* Stops the page bouncing past the sticky score header on iOS. */
   overscroll-behavior-y: contain;
+  -webkit-font-smoothing: antialiased;
 }
 
 /* Scores must not jitter while a stepper changes them. */
@@ -86,6 +176,20 @@ body {
 :focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* The number inputs are styled as tiles and steppers; the browser's own
+ * spinners would fight that, and the app always offers explicit controls. */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+input[type='number'] {
+  appearance: textfield;
+  -moz-appearance: textfield;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -94,5 +198,6 @@ body {
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

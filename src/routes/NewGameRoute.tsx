@@ -7,15 +7,33 @@ import { useServices } from '@/app/servicesContext';
 import { useRuleSetChoices } from '@/hooks/useGameData';
 import { useCommand } from '@/hooks/useCommand';
 import { useLiveResult } from '@/hooks/useLiveResult';
-import { Button, Card, ErrorPanel, LoadingState, Muted, PageTitle } from '@/ui/common/primitives';
+import { AppBar } from '@/ui/app/AppBar';
+import { ChevronRight } from '@/ui/common/icons';
+import { Suit } from '@/ui/common/Suit';
+import {
+  Badge,
+  Block,
+  Button,
+  ErrorPanel,
+  LoadingState,
+  SectionLabel,
+  StickyActions,
+  Switch,
+} from '@/ui/common/primitives';
 
 type Step = 'ruleset' | 'players' | 'rules';
 
+const STEPS: Step[] = ['ruleset', 'players', 'rules'];
+
 const STEP_TITLES: Record<Step, string> = {
-  ruleset: 'Kies een spelvariant',
-  players: 'Spelers en teams',
-  rules: 'Spelregels',
+  ruleset: 'Welke variant spelen jullie?',
+  players: 'Wie zit waar?',
+  rules: 'Huisregels',
 };
+
+const TEXT_INPUT =
+  'min-h-12 w-full rounded-tile border-[1.5px] border-border bg-surface px-3.5 text-base ' +
+  'transition-colors outline-none focus:border-accent focus:bg-panel';
 
 /**
  * The new-game flow.
@@ -83,198 +101,306 @@ export function NewGameRoute() {
     if (outcome?.ok) navigate(`/games/${outcome.game.id}`);
   }
 
+  const stepIndex = STEPS.indexOf(step);
+  const seats = setup && ruleSet.status === 'ready' ? defaultTeamSeats(ruleSet.data) : [];
+
   return (
-    <div className="space-y-4">
-      <PageTitle>Nieuwe partij</PageTitle>
-      <Muted>{STEP_TITLES[step]}</Muted>
+    <div className="flex flex-1 flex-col">
+      <AppBar
+        title="Nieuwe partij"
+        back={step === 'ruleset' ? '/' : undefined}
+        onBack={step === 'ruleset' ? undefined : () => setStep(STEPS[stepIndex - 1] ?? 'ruleset')}
+      />
 
-      {create.result && !create.result.ok ? (
-        <ErrorPanel title="De partij kon niet worden gestart.">
-          {create.result.reason === 'validation' ? (
-            <ul className="list-disc pl-5">
-              {create.result.issues.map((issue) => (
-                <li key={issue.code}>{issue.message}</li>
-              ))}
-            </ul>
-          ) : (
-            <p>Onbekende regelset.</p>
-          )}
-        </ErrorPanel>
-      ) : null}
-
-      {step === 'ruleset' ? (
-        <>
-          {choices.status === 'loading' ? <LoadingState /> : null}
-          {choices.status === 'ready' ? (
-            <ul className="space-y-2">
-              {choices.data.map((choice) => (
-                <li key={`${choice.origin}:${choice.id}`}>
-                  <button
-                    type="button"
-                    className="w-full rounded-2xl border border-[--color-border] bg-[--color-panel] p-4 text-left hover:bg-[--color-panel-muted]"
-                    onClick={() => pick(choice)}
-                  >
-                    <p className="font-medium">
-                      {choice.name}
-                      {choice.overrideCount > 0 ? (
-                        <span className="ml-2 text-xs text-[--color-ink-muted]">
-                          · {choice.overrideCount} huisregels
-                        </span>
-                      ) : null}
-                    </p>
-                    <p className="mt-1 text-sm text-[--color-ink-muted]">{choice.summaryLine}</p>
-                    <p className="mt-1 text-sm">{choice.description}</p>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </>
-      ) : null}
-
-      {step === 'players' && setup ? (
-        <Card>
-          <div className="space-y-3">
-            {setup.playerSlots.map((slot, index) => (
-              <div key={slot.seat} className="flex flex-col gap-1">
-                <label htmlFor={`speler-${slot.seat}`} className="text-sm font-medium">
-                  {slot.label}
-                </label>
-                <input
-                  id={`speler-${slot.seat}`}
-                  type="text"
-                  className="min-h-[var(--spacing-touch)] rounded-xl border border-[--color-border] bg-[--color-panel] px-3"
-                  placeholder={slot.placeholder}
-                  value={playerNames[index] ?? ''}
-                  onChange={(event) =>
-                    setPlayerNames((names) => {
-                      const next = [...names];
-                      next[index] = event.target.value;
-                      return next;
-                    })
-                  }
-                />
-              </div>
+      <div className="flex flex-1 flex-col gap-4.5 pt-2">
+        <div className="flex flex-col gap-2.5">
+          <div className="flex gap-1.5" aria-hidden="true">
+            {STEPS.map((name, index) => (
+              <span
+                key={name}
+                className={`h-1.25 flex-1 rounded-full ${
+                  index <= stepIndex ? 'bg-accent' : 'bg-panel2'
+                }`}
+              />
             ))}
           </div>
-
-          {setup.hasTeams ? (
-            <div className="mt-5 space-y-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-[--color-ink-muted]">
-                {setup.teamNoun.plural}
-              </h2>
-              {setup.defaultTeamNames.map((fallback, index) => (
-                <div key={fallback} className="flex flex-col gap-1">
-                  <label htmlFor={`team-${index}`} className="text-sm font-medium">
-                    Naam van {setup.teamNoun.singular} {index + 1}
-                  </label>
-                  <input
-                    id={`team-${index}`}
-                    type="text"
-                    className="min-h-[var(--spacing-touch)] rounded-xl border border-[--color-border] bg-[--color-panel] px-3"
-                    placeholder={fallback}
-                    value={teamNames[index] ?? ''}
-                    onChange={(event) =>
-                      setTeamNames((names) => {
-                        const next = [...names];
-                        next[index] = event.target.value;
-                        return next;
-                      })
-                    }
-                  />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <Muted>
-              Deze variant speel je met {setup.playerSlots.length} {setup.teamNoun.plural}, zonder
-              teams.
-            </Muted>
-          )}
-
-          <div className="mt-5 flex gap-2">
-            <Button onClick={() => setStep('ruleset')}>Terug</Button>
-            <Button variant="primary" onClick={() => setStep('rules')}>
-              Verder
-            </Button>
+          <div>
+            <SectionLabel as="div">Stap {stepIndex + 1} van {STEPS.length}</SectionLabel>
+            <h2 className="mt-0.5 font-display text-[1.75rem] font-semibold leading-tight tracking-title text-pretty">
+              {STEP_TITLES[step]}
+            </h2>
           </div>
-        </Card>
-      ) : null}
+        </div>
 
-      {step === 'rules' && setup ? (
-        <>
-          <Card>
-            <p className="font-medium">{setup.ruleSetName}</p>
-            <Muted>{setup.summaryLine}</Muted>
-          </Card>
+        {create.result && !create.result.ok ? (
+          <ErrorPanel title="De partij kon niet worden gestart.">
+            {create.result.reason === 'validation' ? (
+              <ul className="list-disc pl-5">
+                {create.result.issues.map((issue) => (
+                  <li key={issue.code}>{issue.message}</li>
+                ))}
+              </ul>
+            ) : (
+              <p>Onbekende regelset.</p>
+            )}
+          </ErrorPanel>
+        ) : null}
 
-          {setup.editableSections.map((section) => (
-            <Card key={section.category}>
-              <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-[--color-ink-muted]">
-                {section.title}
-              </h2>
-              <div className="space-y-3">
+        {step === 'ruleset' ? (
+          <>
+            {choices.status === 'loading' ? <LoadingState /> : null}
+            {choices.status === 'ready' ? (
+              <ul className="flex flex-col gap-2.5">
+                {choices.data.map((choice, index) => (
+                  <li key={`${choice.origin}:${choice.id}`}>
+                    <button
+                      type="button"
+                      className="flex w-full items-start gap-3.5 rounded-list border-[1.5px] border-border bg-panel px-4.5 py-4 text-left transition-colors hover:border-accent hover:bg-panel2"
+                      onClick={() => pick(choice)}
+                    >
+                      {/* A visual anchor only — the counts that matter are in
+                          the summary line the view model composed. */}
+                      <span className="flex size-11 shrink-0 items-center justify-center rounded-tile bg-panel2 text-lg">
+                        <Suit index={index} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-2 text-base font-semibold">
+                          {choice.name}
+                          {choice.overrideCount > 0 ? (
+                            <Badge tone="accent">
+                              {choice.overrideCount === 1
+                                ? '1 huisregel'
+                                : `${choice.overrideCount} huisregels`}
+                            </Badge>
+                          ) : null}
+                        </span>
+                        <span className="mt-0.5 block text-caption text-muted">
+                          {choice.summaryLine}
+                        </span>
+                        <span className="mt-1.5 block text-sm leading-snug text-pretty">
+                          {choice.description}
+                        </span>
+                      </span>
+                      <ChevronRight size={18} className="mt-3 shrink-0 text-muted" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </>
+        ) : null}
+
+        {step === 'players' && setup ? (
+          <div className="flex flex-col gap-3">
+            {setup.hasTeams ? (
+              setup.defaultTeamNames.map((fallback, teamIndex) => (
+                <Block key={fallback} className="px-4 py-1.5">
+                  <SectionLabel className="flex items-center gap-2 py-2.5">
+                    <Suit index={teamIndex} className="text-sm" />
+                    {fallback}
+                  </SectionLabel>
+
+                  {(seats[teamIndex] ?? []).map((seat) => {
+                    const slot = setup.playerSlots[seat];
+                    if (!slot) return null;
+                    return (
+                      <div
+                        key={slot.seat}
+                        className="flex items-center gap-3 border-t border-border py-2.5"
+                      >
+                        <label
+                          htmlFor={`speler-${slot.seat}`}
+                          className="w-16 shrink-0 text-note text-muted"
+                        >
+                          {slot.label}
+                        </label>
+                        <input
+                          id={`speler-${slot.seat}`}
+                          type="text"
+                          className={TEXT_INPUT}
+                          placeholder={slot.placeholder}
+                          value={playerNames[slot.seat] ?? ''}
+                          onChange={(event) =>
+                            setPlayerNames((names) => {
+                              const next = [...names];
+                              next[slot.seat] = event.target.value;
+                              return next;
+                            })
+                          }
+                        />
+                      </div>
+                    );
+                  })}
+
+                  <div className="flex items-center gap-3 border-t border-border py-2.5">
+                    <label
+                      htmlFor={`team-${teamIndex}`}
+                      className="w-16 shrink-0 text-note text-muted"
+                    >
+                      Naam van {setup.teamNoun.singular} {teamIndex + 1}
+                    </label>
+                    <input
+                      id={`team-${teamIndex}`}
+                      type="text"
+                      className={TEXT_INPUT}
+                      placeholder={fallback}
+                      value={teamNames[teamIndex] ?? ''}
+                      onChange={(event) =>
+                        setTeamNames((names) => {
+                          const next = [...names];
+                          next[teamIndex] = event.target.value;
+                          return next;
+                        })
+                      }
+                    />
+                  </div>
+                </Block>
+              ))
+            ) : (
+              <Block className="px-4 py-1.5">
+                <SectionLabel className="block py-2.5">{setup.teamNoun.plural}</SectionLabel>
+                {setup.playerSlots.map((slot) => (
+                  <div
+                    key={slot.seat}
+                    className="flex items-center gap-3 border-t border-border py-2.5"
+                  >
+                    <label
+                      htmlFor={`speler-${slot.seat}`}
+                      className="w-16 shrink-0 text-note text-muted"
+                    >
+                      {slot.label}
+                    </label>
+                    <input
+                      id={`speler-${slot.seat}`}
+                      type="text"
+                      className={TEXT_INPUT}
+                      placeholder={slot.placeholder}
+                      value={playerNames[slot.seat] ?? ''}
+                      onChange={(event) =>
+                        setPlayerNames((names) => {
+                          const next = [...names];
+                          next[slot.seat] = event.target.value;
+                          return next;
+                        })
+                      }
+                    />
+                  </div>
+                ))}
+              </Block>
+            )}
+
+            <p className="px-2 text-center text-caption leading-snug text-muted text-pretty">
+              {setup.hasTeams
+                ? 'Partners zitten tegenover elkaar. Lege namen worden "Speler n".'
+                : `Deze variant speel je met ${setup.playerSlots.length} ${setup.teamNoun.plural}, zonder teams.`}
+            </p>
+          </div>
+        ) : null}
+
+        {step === 'rules' && setup ? (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3 rounded-btn bg-accent-soft px-4 py-3">
+              <div className="min-w-0">
+                <p className="truncate text-body font-semibold">{setup.ruleSetName}</p>
+                <p className="truncate text-caption text-muted">{setup.summaryLine}</p>
+              </div>
+              <span className="shrink-0 text-caption font-semibold text-accent">Standaard</span>
+            </div>
+
+            {setup.editableSections.map((section) => (
+              <Block key={section.category} className="px-4 py-1.5">
+                <SectionLabel className="block pb-1 pt-2.5">{section.title}</SectionLabel>
                 {section.values
                   .filter((value) => value.type === 'number' || value.type === 'boolean')
                   .map((value) => (
-                    <div key={value.key} className="flex flex-col gap-1">
-                      <label htmlFor={`regel-${value.key}`} className="text-sm font-medium">
-                        {value.label}
-                      </label>
-                      {value.help ? (
-                        <p className="text-xs text-[--color-ink-muted]">{value.help}</p>
-                      ) : null}
+                    <div
+                      key={value.key}
+                      className="flex min-h-touch items-center justify-between gap-3 border-t border-border py-3"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <label
+                          htmlFor={`regel-${value.key}`}
+                          className="text-body font-medium"
+                        >
+                          {value.label}
+                        </label>
+                        {value.help ? (
+                          <p className="mt-0.5 text-caption leading-snug text-muted text-pretty">
+                            {value.help}
+                          </p>
+                        ) : null}
+                      </div>
+
                       {value.type === 'boolean' ? (
-                        <input
+                        <Switch
                           id={`regel-${value.key}`}
-                          type="checkbox"
-                          role="switch"
-                          className="h-6 w-11 accent-[--color-accent]"
                           checked={
                             typeof overrides[value.key] === 'boolean'
                               ? (overrides[value.key] as boolean)
                               : value.valueText === 'Aan'
                           }
-                          onChange={(event) =>
-                            setOverrides((current) => ({
-                              ...current,
-                              [value.key]: event.target.checked,
-                            }))
+                          onChange={(checked) =>
+                            setOverrides((current) => ({ ...current, [value.key]: checked }))
                           }
                         />
                       ) : (
-                        <input
-                          id={`regel-${value.key}`}
-                          type="number"
-                          inputMode="numeric"
-                          className="min-h-[var(--spacing-touch)] rounded-xl border border-[--color-border] bg-[--color-panel] px-3 text-right tabular"
-                          defaultValue={value.valueText.replace(/\./g, '')}
-                          onChange={(event) =>
-                            setOverrides((current) => ({
-                              ...current,
-                              [value.key]: event.target.valueAsNumber,
-                            }))
-                          }
-                        />
+                        <div className="flex min-h-12 w-24 shrink-0 items-center rounded-control border border-border bg-panel2 px-3.5 transition-colors focus-within:border-accent focus-within:bg-panel">
+                          <input
+                            id={`regel-${value.key}`}
+                            type="number"
+                            inputMode="numeric"
+                            className="w-full min-w-0 bg-transparent text-right font-display text-xl font-semibold tabular outline-none"
+                            defaultValue={value.valueText.replace(/\./g, '')}
+                            onChange={(event) =>
+                              setOverrides((current) => ({
+                                ...current,
+                                [value.key]: event.target.valueAsNumber,
+                              }))
+                            }
+                          />
+                        </div>
                       )}
                     </div>
                   ))}
-              </div>
-            </Card>
-          ))}
-
-          <div className="flex gap-2">
-            <Button onClick={() => setStep('players')}>Terug</Button>
-            <Button
-              variant="primary"
-              disabled={create.state === 'running'}
-              onClick={() => void start()}
-            >
-              Partij starten
-            </Button>
+              </Block>
+            ))}
           </div>
-        </>
-      ) : null}
+        ) : null}
+      </div>
+
+      <StickyActions>
+        {step === 'ruleset' ? (
+          <p className="flex-1 py-3 text-center text-note text-muted">
+            Kies een variant om verder te gaan
+          </p>
+        ) : (
+          <>
+            <Button
+              variant="ghost"
+              size="md"
+              onClick={() => setStep(STEPS[stepIndex - 1] ?? 'ruleset')}
+            >
+              Terug
+            </Button>
+            {step === 'players' ? (
+              <Button variant="primary" size="lg" block onClick={() => setStep('rules')}>
+                Verder
+                <ChevronRight size={18} />
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                size="lg"
+                block
+                disabled={create.state === 'running'}
+                onClick={() => void start()}
+              >
+                Partij starten
+              </Button>
+            )}
+          </>
+        )}
+      </StickyActions>
     </div>
   );
 }

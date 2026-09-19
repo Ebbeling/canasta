@@ -1,5 +1,6 @@
 import type { GameSummary } from '@/application/ports';
 import { formatDate } from '@/application/labels/format';
+import { Badge } from '@/ui/common/primitives';
 
 const STATUS_LABELS: Record<GameSummary['status'], string> = {
   active: 'Bezig',
@@ -7,21 +8,34 @@ const STATUS_LABELS: Record<GameSummary['status'], string> = {
   abandoned: 'Gestopt',
 };
 
+const STATUS_TONES: Record<GameSummary['status'], 'accent' | 'neutral'> = {
+  active: 'accent',
+  finished: 'neutral',
+  abandoned: 'neutral',
+};
+
+/**
+ * One game as a list row: who played, which rule set and when, how far it got.
+ *
+ * No scores here on purpose. A `GameSummary` is read from the games store
+ * alone; the totals live in the rounds store, and loading every game's rounds
+ * to paint a list would turn a cheap query into a per-row recomputation.
+ */
 export function GameSummaryRow({ summary }: { summary: GameSummary }) {
   return (
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <p className="truncate font-medium">{summary.name ?? summary.teamNames.join(' tegen ')}</p>
-        <p className="mt-0.5 truncate text-sm text-[--color-ink-muted]">
+    <>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-body font-semibold">
+          {summary.name ?? summary.teamNames.join(' tegen ')}
+        </p>
+        <p className="truncate text-caption text-muted">
           {summary.ruleSetName} · {formatDate(summary.createdAt)}
         </p>
-        <p className="mt-0.5 text-sm text-[--color-ink-muted]">
-          {summary.roundCount === 1 ? '1 ronde' : `${summary.roundCount} rondes`}
-        </p>
       </div>
-      <span className="shrink-0 rounded-full bg-[--color-panel-muted] px-3 py-1 text-xs">
-        {STATUS_LABELS[summary.status]}
+      <span className="shrink-0 text-caption text-muted">
+        {summary.roundCount === 1 ? '1 ronde' : `${summary.roundCount} rondes`}
       </span>
-    </div>
+      <Badge tone={STATUS_TONES[summary.status]}>{STATUS_LABELS[summary.status]}</Badge>
+    </>
   );
 }

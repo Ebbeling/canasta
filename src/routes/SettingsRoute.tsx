@@ -6,14 +6,43 @@ import { useCommand } from '@/hooks/useCommand';
 import { usePwaInstall } from '@/hooks/usePwaInstall';
 import { applyTheme } from '@/app/theme';
 import { BUILTIN_SOURCES } from '@/application/viewmodels/sources';
-import { Button, Card, Muted, PageTitle, SectionTitle } from '@/ui/common/primitives';
+import { AppBar } from '@/ui/app/AppBar';
+import { ExternalLink, Trash } from '@/ui/common/icons';
+import { Sheet } from '@/ui/common/Sheet';
+import {
+  Block,
+  Button,
+  Muted,
+  Row,
+  SectionLabel,
+  SegmentedControl,
+} from '@/ui/common/primitives';
 import { ImportGameSection } from '@/ui/settings/ImportGameSection';
 
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
-  { value: 'system', label: 'Volgt het systeem' },
+  { value: 'system', label: 'Systeem' },
   { value: 'light', label: 'Licht' },
   { value: 'dark', label: 'Donker' },
 ];
+
+/** A settings group: a small caps label above one bordered block of rows. */
+function Group({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="flex flex-col gap-2">
+      <SectionLabel className="px-1">{title}</SectionLabel>
+      <Block className="overflow-hidden">{children}</Block>
+    </section>
+  );
+}
+
+function RowText({ label, sub }: { label: string; sub?: string }) {
+  return (
+    <div className="min-w-0 flex-1">
+      <p className="text-body font-medium">{label}</p>
+      {sub ? <p className="mt-0.5 text-caption leading-snug text-muted text-pretty">{sub}</p> : null}
+    </div>
+  );
+}
 
 export function SettingsRoute() {
   const services = useServices();
@@ -37,129 +66,168 @@ export function SettingsRoute() {
     await services.settings.setTheme(next);
   }
 
+  const gameCount = games.status === 'ready' ? games.data.length : undefined;
+  const countText =
+    gameCount === undefined ? 'Partijen tellen…' : gameCount === 1 ? '1 partij' : `${gameCount} partijen`;
+
   return (
-    <div className="space-y-4">
-      <PageTitle>Instellingen</PageTitle>
+    <div className="flex flex-1 flex-col pb-6">
+      <AppBar title="Instellingen" back="/" />
 
-      <Card>
-        <SectionTitle>Thema</SectionTitle>
-        <fieldset className="mt-2 flex flex-col gap-2 border-0 p-0">
-          <legend className="sr-only">Kleurthema</legend>
-          {THEME_OPTIONS.map((option) => (
-            <label
-              key={option.value}
-              className="inline-flex min-h-[var(--spacing-touch)] items-center gap-2"
-            >
-              <input
-                type="radio"
-                name="thema"
-                value={option.value}
-                checked={theme === option.value}
-                onChange={() => void chooseTheme(option.value)}
-              />
-              <span className="text-sm">{option.label}</span>
-            </label>
-          ))}
-        </fieldset>
-      </Card>
-
-      <Card>
-        <SectionTitle>Opslag</SectionTitle>
-        <p className="mt-2 text-sm">
-          {games.status === 'ready'
-            ? `${games.data.length === 1 ? '1 partij' : `${games.data.length} partijen`} op dit apparaat.`
-            : 'Partijen tellen…'}
-        </p>
-        <Muted>
-          Alle gegevens staan uitsluitend op dit apparaat. Er is geen account, geen server en geen
-          synchronisatie.
-        </Muted>
-        <p className="mt-2 text-sm">
-          Permanente opslag:{' '}
-          {persisted === undefined ? 'onbekend' : persisted ? 'toegekend' : 'niet toegekend'}
-        </p>
-        {!persisted ? (
-          <Button
-            className="mt-2"
-            onClick={() => void services.settings.requestPersistentStorage().then(setPersisted)}
-          >
-            Permanente opslag aanvragen
-          </Button>
-        ) : null}
-
-        {install.canInstall ? (
-          <Button className="mt-2" variant="primary" onClick={() => void install.promptInstall()}>
-            App installeren
-          </Button>
-        ) : null}
-        {install.iosHint ? (
-          <Muted>
-            Op iPhone en iPad: tik op de deelknop en kies &quot;Zet op beginscherm&quot; om de app
-            te installeren.
-          </Muted>
-        ) : null}
-      </Card>
-
-      <ImportGameSection />
-
-      <Card>
-        <SectionTitle>Gegevens exporteren</SectionTitle>
-        <Muted>
-          Een partij exporteer je vanaf het scorebord van die partij, met de knop
-          &quot;Exporteren&quot;. Je krijgt één JSON-bestand dat de partij compleet bevat, inclusief
-          de regelset waarmee hij gespeeld is.
-        </Muted>
-      </Card>
-
-      <Card>
-        <SectionTitle>Over deze app</SectionTitle>
-        <Muted>
-          Een offline scorekaart voor Canasta. De regels komen uit de onderstaande bronnen; waar een
-          bron zwijgt, zegt de app dat erbij in plaats van iets aan te nemen.
-        </Muted>
-        <ul className="mt-2 space-y-1 text-sm">
-          {BUILTIN_SOURCES.map((source) => (
-            <li key={`${source.name}-${source.title ?? ''}`}>
-              {source.url ? (
-                <a href={source.url} className="underline" target="_blank" rel="noreferrer">
-                  {source.name}
-                  {source.title ? ` — ${source.title}` : ''}
-                </a>
-              ) : (
-                source.name
-              )}
-              {source.retrievedAt ? (
-                <span className="text-[--color-ink-muted]"> (opgehaald {source.retrievedAt})</span>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      </Card>
-
-      <Card>
-        <SectionTitle>Alle partijen verwijderen</SectionTitle>
-        <Muted>
-          Dit verwijdert elke partij op dit apparaat. Dit kan niet ongedaan worden gemaakt.
-        </Muted>
-        {confirmClear ? (
-          <div className="mt-2 flex gap-2">
-            <Button
-              variant="danger"
-              onClick={() => {
-                void clearAll.run(undefined);
-                setConfirmClear(false);
-              }}
-            >
-              Ja, alles verwijderen
-            </Button>
-            <Button onClick={() => setConfirmClear(false)}>Annuleren</Button>
+      <div className="flex flex-col gap-4.5 pt-2">
+        <Group title="Weergave">
+          <div className="flex flex-col gap-2.5 px-4 py-3.5">
+            <p className="text-body font-medium">Thema</p>
+            <SegmentedControl
+              name="thema"
+              label="Kleurthema"
+              value={theme}
+              options={THEME_OPTIONS}
+              onChange={(next) => void chooseTheme(next)}
+            />
           </div>
-        ) : (
-          <Button className="mt-2" variant="danger" onClick={() => setConfirmClear(true)}>
-            Alle partijen verwijderen
+        </Group>
+
+        <Group title="Opslag">
+          <Row>
+            <RowText
+              label="Partijen op dit apparaat"
+              sub="Geen account, geen server, geen synchronisatie."
+            />
+            <span className="shrink-0 text-sm text-muted">{countText}</span>
+          </Row>
+
+          <Row>
+            <RowText
+              label="Permanente opslag"
+              sub="Voorkomt dat de browser deze gegevens opruimt."
+            />
+            {persisted ? (
+              <span className="shrink-0 text-sm text-muted">Toegekend</span>
+            ) : (
+              <Button
+                size="sm"
+                onClick={() => void services.settings.requestPersistentStorage().then(setPersisted)}
+              >
+                Aanvragen
+              </Button>
+            )}
+          </Row>
+
+          <Row>
+            <RowText
+              label="Alle partijen verwijderen"
+              sub="Kan niet ongedaan worden gemaakt."
+            />
+            <Button variant="dangerSoft" size="sm" onClick={() => setConfirmClear(true)}>
+              Verwijderen
+            </Button>
+          </Row>
+        </Group>
+
+        <ImportGameSection />
+
+        <Group title="App">
+          {install.canInstall ? (
+            <Row>
+              <RowText label="App installeren" sub="Zet Canasta op je beginscherm." />
+              <Button variant="primary" size="sm" onClick={() => void install.promptInstall()}>
+                Installeren
+              </Button>
+            </Row>
+          ) : null}
+
+          {install.iosHint ? (
+            <Row>
+              <RowText
+                label="App installeren"
+                sub={'Op iPhone en iPad: tik op de deelknop en kies "Zet op beginscherm".'}
+              />
+            </Row>
+          ) : null}
+
+          <Row>
+            <RowText
+              label="Een partij exporteren"
+              sub={'Open de partij en kies "Meer acties" op het scorebord. Je krijgt één JSON-bestand, inclusief de regelset waarmee hij gespeeld is.'}
+            />
+          </Row>
+
+          <Row>
+            <RowText
+              label="Over deze app"
+              sub="Een offline scorekaart voor Canasta. Waar een bron zwijgt, zegt de app dat erbij in plaats van iets aan te nemen."
+            />
+          </Row>
+        </Group>
+
+        <Group title="Bronnen">
+          {BUILTIN_SOURCES.map((source) => (
+            <Row key={`${source.name}-${source.title ?? ''}`}>
+              <RowText
+                label={source.name}
+                sub={[source.title, source.retrievedAt ? `opgehaald ${source.retrievedAt}` : undefined]
+                  .filter(Boolean)
+                  .join(' · ')}
+              />
+              {source.url ? (
+                <a
+                  href={source.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`${source.name} openen in een nieuw tabblad`}
+                  className="inline-flex size-11 shrink-0 items-center justify-center rounded-tile text-muted transition-colors hover:bg-panel2 hover:text-ink"
+                >
+                  <ExternalLink size={18} />
+                </a>
+              ) : null}
+            </Row>
+          ))}
+        </Group>
+
+        <Muted className="text-center text-xs">
+          Canasta Puntentelling · versie 0.1.0 · werkt offline
+        </Muted>
+      </div>
+
+      <Sheet
+        open={confirmClear}
+        onClose={() => setConfirmClear(false)}
+        title={
+          gameCount === undefined
+            ? 'Alle partijen verwijderen?'
+            : `Alle ${gameCount} ${gameCount === 1 ? 'partij' : 'partijen'} verwijderen?`
+        }
+        description={
+          <>
+            Alle partijen, rondes en concepten op <b className="text-ink">dit apparaat</b> worden
+            gewist. Er is geen back-up en geen synchronisatie — dit kan niet ongedaan worden
+            gemaakt.
+          </>
+        }
+        icon={
+          <span className="flex size-13 items-center justify-center rounded-btn bg-neg-soft text-heart">
+            <Trash />
+          </span>
+        }
+      >
+        <div className="mt-4 flex flex-col gap-2">
+          <Button
+            variant="danger"
+            size="lg"
+            block
+            onClick={() => {
+              void clearAll.run(undefined);
+              setConfirmClear(false);
+            }}
+          >
+            Ja, alles verwijderen
           </Button>
-        )}
-      </Card>
+          <Button variant="ghost" size="lg" block onClick={() => setConfirmClear(false)}>
+            Annuleren
+          </Button>
+        </div>
+      </Sheet>
     </div>
   );
 }

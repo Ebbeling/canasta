@@ -161,6 +161,8 @@ describe('export from the scoreboard', () => {
 
     try {
       renderAt(ctx, `/games/${game.id}`);
+      // Exporting lives under the scoreboard's overflow menu.
+      await user.click(await screen.findByRole('button', { name: 'Meer acties' }));
       await user.click(await screen.findByRole('button', { name: 'Exporteren' }));
 
       await waitFor(() => expect(createdUrls).toHaveLength(1));

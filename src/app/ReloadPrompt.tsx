@@ -22,10 +22,10 @@ export function ReloadPrompt() {
     <div
       role="status"
       aria-live="polite"
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-[--color-border] bg-[--color-panel] p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]"
+      className="fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]"
     >
-      <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-3">
-        <p className="flex-1 text-sm">
+      <div className="flex w-full max-w-page flex-wrap items-center gap-3 rounded-card border border-border bg-panel px-4 py-3.5 shadow-soft">
+        <p className="flex-1 text-sm font-medium">
           {needRefresh
             ? 'Er is een nieuwe versie beschikbaar.'
             : 'Klaar voor gebruik zonder internet.'}
@@ -33,13 +33,17 @@ export function ReloadPrompt() {
 
         {needRefresh ? (
           <>
-            <Button variant="primary" onClick={() => void updateServiceWorker(true)}>
+            <Button variant="ghost" size="sm" onClick={() => setNeedRefresh(false)}>
+              Later
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => void updateServiceWorker(true)}>
               Nu bijwerken
             </Button>
-            <Button onClick={() => setNeedRefresh(false)}>Later</Button>
           </>
         ) : (
-          <Button onClick={() => setOfflineReady(false)}>Sluiten</Button>
+          <Button size="sm" onClick={() => setOfflineReady(false)}>
+            Sluiten
+          </Button>
         )}
       </div>
     </div>

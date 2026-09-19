@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import type { TeamPreviewVM } from '@/application/viewmodels/roundPreview';
-import type { ScoreLineVM } from '@/application/viewmodels/roundPreview';
+import type { ReactNode } from 'react';
+import type { ScoreLineVM, TeamPreviewVM } from '@/application/viewmodels/roundPreview';
+import { Block, Score, SectionLabel } from '@/ui/common/primitives';
 
 /**
  * The §38 breakdown: one line per scoring rule, tappable for the engine's own
@@ -11,28 +12,28 @@ function Line({ line }: { line: ScoreLineVM }) {
   const negative = line.value < 0;
 
   const row = (
-    <div className="flex items-baseline justify-between gap-3 py-1">
+    <span className="flex items-baseline justify-between gap-3 py-0.5 text-sm">
       <span className="min-w-0 truncate">{line.label}</span>
-      <span className={`shrink-0 tabular ${negative ? 'text-[--color-negative]' : ''}`}>
-        {line.valueText}
-      </span>
-    </div>
+      <span className={`shrink-0 tabular ${negative ? 'text-heart' : ''}`}>{line.valueText}</span>
+    </span>
   );
 
-  if (!line.explain) return <li className="text-sm">{row}</li>;
+  if (!line.explain) {
+    return <li className="border-b border-border py-2">{row}</li>;
+  }
 
   return (
-    <li className="text-sm">
+    <li className="border-b border-border">
       <button
         type="button"
-        className="min-h-[var(--spacing-touch)] w-full text-left"
+        className="flex min-h-touch w-full flex-col justify-center text-left"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
         {row}
       </button>
       {open ? (
-        <p className="whitespace-pre-line rounded-lg bg-[--color-panel-muted] p-2 text-xs">
+        <p className="mb-2 whitespace-pre-line rounded-tile bg-panel2 px-3 py-2 text-xs leading-relaxed text-muted">
           {line.explain}
         </p>
       ) : null}
@@ -40,28 +41,34 @@ function Line({ line }: { line: ScoreLineVM }) {
   );
 }
 
-export function BreakdownList({ team }: { team: TeamPreviewVM }) {
-  if (team.lines.length === 0) {
-    return <p className="text-sm text-[--color-ink-muted]">Nog niets ingevuld voor dit team.</p>;
-  }
-
+export function BreakdownList({ team, title }: { team: TeamPreviewVM; title: ReactNode }) {
   return (
-    <>
-      <ul className="divide-y divide-[--color-border]">
-        {team.lines.map((line) => (
-          <Line key={line.ruleId} line={line} />
-        ))}
-      </ul>
-      <div
-        className="mt-2 flex items-baseline justify-between border-t border-[--color-border] pt-2 font-semibold"
-        aria-live="polite"
-      >
-        <span>Totaal</span>
-        <span className="tabular">{team.totalText}</span>
+    <Block className="px-4 py-3.5">
+      <div className="flex items-baseline justify-between gap-3">
+        <SectionLabel as="h2">{title}</SectionLabel>
+        {team.lines.length > 0 ? (
+          <span className="text-caption text-muted">tik een regel voor uitleg</span>
+        ) : null}
       </div>
-      <p className="mt-1 text-xs text-[--color-ink-muted]">
-        Nieuwe stand: <span className="tabular">{team.scoreAfterText}</span>
-      </p>
-    </>
+
+      {team.lines.length === 0 ? (
+        <p className="mt-2 text-sm text-muted">Nog niets ingevuld voor dit team.</p>
+      ) : (
+        <>
+          <ul className="mt-1.5">
+            {team.lines.map((line) => (
+              <Line key={line.ruleId} line={line} />
+            ))}
+          </ul>
+          <div className="flex items-baseline justify-between gap-3 pt-2.5" aria-live="polite">
+            <span className="font-semibold">Totaal</span>
+            <Score className="text-[1.75rem]">{team.totalText}</Score>
+          </div>
+          <p className="text-caption text-muted">
+            Nieuwe stand <b className="tabular text-ink">{team.scoreAfterText}</b>
+          </p>
+        </>
+      )}
+    </Block>
   );
 }

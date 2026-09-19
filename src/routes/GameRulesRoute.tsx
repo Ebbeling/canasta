@@ -1,6 +1,8 @@
 import { useParams } from 'react-router';
 import { useGameRules } from '@/hooks/useGameData';
-import { Card, LinkButton, LoadingState, Muted, PageTitle } from '@/ui/common/primitives';
+import { AppBar } from '@/ui/app/AppBar';
+import { GameNav } from '@/ui/app/GameNav';
+import { LoadingState } from '@/ui/common/primitives';
 import { RuleSetView } from '@/ui/rules/RuleSetView';
 import { GameNotFound } from './GameNotFound';
 
@@ -8,7 +10,8 @@ import { GameNotFound } from './GameNotFound';
  * The rules of *this* game, read from its frozen snapshot.
  *
  * Deliberately not the current built-in: a rule set edited after the game began
- * must not change what this screen shows (spec §13, §18).
+ * must not change what this screen shows (spec §13, §18). That is also why the
+ * screen is read-only — there is nothing here to change.
  */
 export function GameRulesRoute() {
   const { gameId } = useParams();
@@ -18,18 +21,18 @@ export function GameRulesRoute() {
   if (rules.status === 'missing') return <GameNotFound />;
 
   return (
-    <div className="space-y-4">
-      <PageTitle>Spelregels</PageTitle>
-      <Card>
-        <Muted>
-          Dit zijn de regels waarmee deze partij is gestart. Ze veranderen niet meer, ook niet als
-          de regelset later wordt aangepast.
-        </Muted>
-      </Card>
+    <div className="flex flex-1 flex-col">
+      <AppBar
+        title="Spelregels"
+        subtitle="Vastgelegd bij de start van deze partij"
+        back={`/games/${gameId}`}
+      />
 
-      <RuleSetView description={rules.data} />
+      <div className="flex-1 pt-1">
+        <RuleSetView description={rules.data} />
+      </div>
 
-      <LinkButton to={`/games/${gameId}`}>Terug naar het scorebord</LinkButton>
+      <GameNav gameId={gameId ?? ''} />
     </div>
   );
 }

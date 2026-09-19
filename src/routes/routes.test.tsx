@@ -232,7 +232,7 @@ describe('round entry — unsaved-changes guard', () => {
     });
 
     // …the navigation goes through…
-    expect(await screen.findByRole('link', { name: 'Ronde invoeren' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /Ronde \d+ invoeren/ })).toBeInTheDocument();
 
     // …and the user was never asked to discard anything.
     expect(confirmSpy).not.toHaveBeenCalled();
@@ -269,12 +269,13 @@ describe('round entry — unsaved-changes guard', () => {
     fireEvent.change(points, { target: { value: '250' } });
     await user.click(screen.getByRole('button', { name: 'Ronde opslaan' }));
 
-    await screen.findByRole('link', { name: 'Ronde invoeren' });
+    await screen.findByRole('link', { name: /Ronde \d+ invoeren/ });
 
     // A second navigation, after the save, must be just as unobstructed.
     await user.click(screen.getByRole('link', { name: 'Geschiedenis' }));
 
-    expect(await screen.findByText('Ronde 1')).toBeInTheDocument();
+    // Landed on the history screen: the saved round is listed there.
+    expect(await screen.findByRole('link', { name: 'Ronde 1 bewerken' })).toBeInTheDocument();
     expect(confirmSpy).not.toHaveBeenCalled();
   });
 
@@ -326,7 +327,7 @@ describe('round entry — unsaved-changes guard', () => {
     );
 
     await user.click(screen.getByRole('button', { name: 'Ronde opslaan' }));
-    await screen.findByRole('link', { name: 'Ronde invoeren' });
+    await screen.findByRole('link', { name: /Ronde \d+ invoeren/ });
 
     // Saving clears the draft, and nothing writes it back afterwards.
     expect(await ctx.services.rounds.loadDraft(draftKey)).toBeUndefined();
@@ -439,9 +440,11 @@ describe('history and corrections', () => {
     await seedRound(ctx.services, game.id, game.teams, [300, 300]);
     renderAt(ctx, `/games/${game.id}/history`);
 
-    expect(await screen.findByText('Ronde 1')).toBeInTheDocument();
-    expect(await screen.findByText('Ronde 2')).toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: 'Bewerken' })).toHaveLength(2);
+    // The table lists the round number in its own column; the correction link
+    // is the pencil beside it, named after the round it edits.
+    expect(await screen.findByRole('link', { name: 'Ronde 1 bewerken' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Ronde 2 bewerken' })).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /bewerken/i })).toHaveLength(2);
   });
 
   it('cascades a correction through every later round', async () => {
