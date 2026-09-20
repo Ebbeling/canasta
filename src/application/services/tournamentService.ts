@@ -7,6 +7,7 @@ import {
   currentDay,
   currentRound,
   playsIndividually,
+  tieIsUndecided,
   type ParticipantId,
   type Tournament,
   type TournamentDay,
@@ -106,8 +107,22 @@ export interface TournamentService {
   /** Fixes the tables of the next round and opens it. */
   confirmRound(id: TournamentId, matches: ProposedMatch[]): Promise<TournamentOutcome>;
 
-  /** Creates the game behind a table, or returns the one already there. */
-  startMatch(id: TournamentId, matchId: string): Promise<StartMatchOutcome>;
+  /**
+   * Creates the game behind a table, or returns the one already there.
+   *
+   * `replay` deliberately ignores the game already there and makes a new one.
+   */
+  startMatch(id: TournamentId, matchId: string, replay?: boolean): Promise<StartMatchOutcome>;
+  /**
+   * Plays a table again, from the same seating.
+   *
+   * The table's old game is left exactly where it is, under Partijen; only the
+   * match's pointer moves to the new one. This is how a level game in a
+   * tournament without gelijkspel is settled: the game engine's own answer to a
+   * tie it does not accept is to play more, and at tournament level that means
+   * playing the table.
+   */
+  replayMatch(id: TournamentId, matchId: string): Promise<StartMatchOutcome>;
   /** Closes a round once every table has a finished game. */
   completeRound(id: TournamentId, roundId: TournamentRoundId): Promise<TournamentOutcome>;
 
@@ -238,12 +253,39 @@ export function shapeOfTable(tournament: Tournament, match: TournamentMatch): Pa
   };
 }
 
-/** Whether every table of a round has a finished game behind it. */
-export function roundIsResolved(round: TournamentRound, games: Map<GameId, Game>): boolean {
+/**
+ * Whether every table of a round has produced a result the tournament can use.
+ *
+ * A finished game is not always one of those: a game that ended level in a
+ * tournament that recognises no draw has decided nothing here, and the round
+ * stays open until the organiser plays that table again.
+ */
+export function roundIsResolved(
+  round: TournamentRound,
+  games: Map<GameId, Game>,
+  settings: TournamentSettings,
+): boolean {
   return round.matches.every((match) => {
     if (match.kind === 'bye') return true;
     if (!match.gameId) return false;
-    return games.get(match.gameId)?.status === 'finished';
+
+    const game = games.get(match.gameId);
+    if (game?.status !== 'finished') return false;
+    return !tieIsUndecided(settings, game.result?.tie ?? false);
+  });
+}
+
+/** The tables of a round that ended level and still need to be played again. */
+export function undecidedMatches(
+  round: TournamentRound,
+  games: Map<GameId, Game>,
+  settings: TournamentSettings,
+): TournamentMatch[] {
+  return round.matches.filter((match) => {
+    if (match.kind === 'bye' || !match.gameId) return false;
+    const game = games.get(match.gameId);
+    if (game?.status !== 'finished') return false;
+    return tieIsUndecided(settings, game.result?.tie ?? false);
   });
 }
 
@@ -338,7 +380,7 @@ export function createTournamentService(deps: TournamentServiceDeps): Tournament
     return activeParticipants(tournament).map((participant) => participant.id);
   }
 
-  return {
+  const service: TournamentService = {
     async create(input) {
       const issues = validateTournamentSetup(input);
       if (hasErrors(issues)) return { ok: false, reason: 'validation', issues };
@@ -535,7 +577,7 @@ export function createTournamentService(deps: TournamentServiceDeps): Tournament
       return { ok: true, tournament: saved };
     },
 
-    async startMatch(id, matchId) {
+    async startMatch(id, matchId, replay = false) {
       const tournament = await repositories.tournaments.get(id);
       if (!tournament) return { ok: false, reason: 'notFound' };
 
@@ -559,7 +601,9 @@ export function createTournamentService(deps: TournamentServiceDeps): Tournament
         };
       }
 
-      if (match.gameId) {
+      // Replaying deliberately ignores the game that is already there: it stays
+      // under Partijen, untouched, and the table points at the new one.
+      if (match.gameId && !replay) {
         const existing = await repositories.games.get(match.gameId);
         if (existing) return { ok: true, tournament, game: existing };
       }
@@ -622,7 +666,7 @@ export function createTournamentService(deps: TournamentServiceDeps): Tournament
         teamNames,
         teamSeats,
         overrides,
-        gameName: `${tournament.name} · ronde ${round.sequence} · tafel ${match.tableNumber}`,
+        gameName: `${tournament.name} · ronde ${round.sequence} · tafel ${match.tableNumber}${replay ? ' · opnieuw' : ''}`,
       });
 
       if (!outcome.ok) {
@@ -667,7 +711,25 @@ export function createTournamentService(deps: TournamentServiceDeps): Tournament
       if (!round) return { ok: false, reason: 'notFound' };
 
       const loaded = await loadGames(tournament);
-      if (!roundIsResolved(round, loaded)) {
+
+      // A level game in a tournament without gelijkspel decided nothing, so the
+      // round cannot be closed on it. Said separately from "not every table is
+      // finished", because those tables *are* finished — they just have no
+      // tournament result.
+      const undecided = undecidedMatches(round, loaded, tournament.settings);
+      if (undecided.length > 0) {
+        return {
+          ok: false,
+          reason: 'validation',
+          issues: undecided.map((match) => ({
+            code: 'tournament.tieUndecided',
+            severity: 'error' as const,
+            message: `Tafel ${match.tableNumber} eindigde gelijk, en dit toernooi kent geen gelijkspel. Speel die tafel opnieuw.`,
+          })),
+        };
+      }
+
+      if (!roundIsResolved(round, loaded, tournament.settings)) {
         return {
           ok: false,
           reason: 'validation',
@@ -804,5 +866,11 @@ export function createTournamentService(deps: TournamentServiceDeps): Tournament
       });
       return { ok: true, tournament: saved };
     },
+
+    replayMatch(id, matchId) {
+      return service.startMatch(id, matchId, true);
+    },
   };
+
+  return service;
 }

@@ -9,6 +9,7 @@ import { blankInput } from '@/application/fields/access';
 import { partyOverrides } from '@/application/viewmodels/setup';
 import type { Tournament, TournamentGameSettings, TournamentSettings } from '@/domain/tournament';
 import { historyOf } from '@/tournament/history';
+import { POINTS_FOR_DRAW, POINTS_FOR_LOSS, POINTS_FOR_WIN } from '@/tournament/standings';
 import type { ProposedMatch } from '@/tournament/pairing';
 import {
   buildDashboard,
@@ -547,7 +548,7 @@ describe('what the dashboard says', () => {
 
     const view = buildDashboard(await loaded(tournament));
     expect(view.round?.matches).toHaveLength(2);
-    expect(view.round?.counts).toEqual({ waiting: 1, busy: 1, done: 0 });
+    expect(view.round?.counts).toEqual({ waiting: 1, busy: 1, done: 0, undecided: 0 });
     expect(view.round?.matches[0]!.actionLabel).toBe('Open partij');
     expect(view.round?.matches[1]!.actionLabel).toBe('Partij starten');
     expect(view.attention.some((line) => line.includes('nog niet gestart'))).toBe(true);
@@ -731,5 +732,187 @@ describe('a round view names what it holds', () => {
     expect(view.status.label).toBe('Bezig');
     expect(view.tableSummary).toContain('nog niet gestart');
     expect(view.matches[0]!.sideLines).toHaveLength(2);
+  });
+});
+
+/**
+ * A game that ends level, and what the tournament does with one.
+ *
+ * The game engine only finishes a game level when its rule set says a level
+ * game is a shared win; every built-in plays another round instead, so a
+ * tournament on a built-in can never meet this at all. These tests force that
+ * rule set setting and then check both tournament answers.
+ */
+describe('a game that ends level', () => {
+  const SHARED_WIN: TournamentGameSettings = {
+    ...FOUR_PLAYER_TABLE,
+    overrides: [{ path: 'endGame.winner.tie', value: 'shared-win' }],
+  };
+
+  const NO_DRAW: TournamentSettings = { ...FIXED, drawAllowed: false };
+
+  /** Plays one round in which both sides of the table score the same. */
+  async function playLevelRound(settings: TournamentSettings): Promise<Tournament> {
+    const tournament = await playRound(await createTournament(settings, SHARED_WIN, 4));
+    return finishRound(tournament, () => 900);
+  }
+
+  it('lets the game itself decide it is a shared win', async () => {
+    const tournament = await playLevelRound(FIXED);
+    const match = tournament.rounds[0]!.matches[0]!;
+
+    const game = await storage.repositories.games.get(match.gameId!);
+    expect(game?.status).toBe('finished');
+    expect(game?.result?.tie).toBe(true);
+    expect(game?.result?.winnerTeamIds).toHaveLength(2);
+  });
+
+  describe('when the tournament allows a draw', () => {
+    it('counts it as a draw, worth one point to each side', async () => {
+      const tournament = await playLevelRound(FIXED);
+      const loadedTournament = await services.tournaments.load(tournament.id);
+      const standings = loadedTournament!.standings;
+
+      expect(standings.unresolvedTies).toEqual([]);
+      expect(standings.provisional).toBe(false);
+      for (const entry of standings.entries) {
+        expect(entry.draws).toBe(1);
+        expect(entry.wins).toBe(0);
+        expect(entry.losses).toBe(0);
+        expect(entry.matchesPlayed).toBe(1);
+        expect(entry.points).toBe(POINTS_FOR_DRAW);
+      }
+    });
+
+    it('closes the round like any other', async () => {
+      const tournament = await playLevelRound(FIXED);
+      const view = buildDashboard(await loaded(tournament));
+      expect(view.round?.canComplete).toBe(true);
+      expect(view.round?.counts.undecided).toBe(0);
+
+      const closed = await services.tournaments.completeRound(
+        tournament.id,
+        tournament.rounds[0]!.id,
+      );
+      expect(closed.ok).toBe(true);
+    });
+  });
+
+  describe('when the tournament allows no draw', () => {
+    it('scores the table as nothing at all', async () => {
+      const tournament = await playLevelRound(NO_DRAW);
+      const loadedTournament = await services.tournaments.load(tournament.id);
+      const standings = loadedTournament!.standings;
+
+      expect(standings.unresolvedTies).toEqual([tournament.rounds[0]!.matches[0]!.id]);
+      expect(standings.provisional).toBe(true);
+      for (const entry of standings.entries) {
+        expect(entry.matchesPlayed).toBe(0);
+        expect(entry.wins).toBe(0);
+        expect(entry.draws).toBe(0);
+        expect(entry.losses).toBe(0);
+        expect(entry.points).toBe(0);
+        // Not even the Canasta score: the match has produced no result here.
+        expect(entry.canastaScore).toBe(0);
+      }
+    });
+
+    it('refuses to close the round, and says which table', async () => {
+      const tournament = await playLevelRound(NO_DRAW);
+      const outcome = await services.tournaments.completeRound(
+        tournament.id,
+        tournament.rounds[0]!.id,
+      );
+
+      expect(outcome.ok).toBe(false);
+      if (outcome.ok || outcome.reason !== 'validation') throw new Error('verwachtte validatie');
+      expect(outcome.issues[0]!.code).toBe('tournament.tieUndecided');
+      expect(outcome.issues[0]!.message).toContain('Tafel 1');
+    });
+
+    it('shows the table as undecided and offers to play it again', async () => {
+      const tournament = await playLevelRound(NO_DRAW);
+      const view = buildDashboard(await loaded(tournament));
+
+      expect(view.round?.canComplete).toBe(false);
+      expect(view.round?.counts).toEqual({ waiting: 0, busy: 0, done: 0, undecided: 1 });
+      expect(view.round?.matches[0]!.needsDecision).toBe(true);
+      expect(view.round?.matches[0]!.missingGame).toBe(false);
+      expect(view.round?.matches[0]!.status.label).toBe('Gelijk · onbeslist');
+      expect(view.round?.matches[0]!.actionLabel).toBe('Tafel opnieuw spelen');
+      expect(view.attention.some((line) => line.includes('opnieuw'))).toBe(true);
+      expect(view.nextAction.enabled).toBe(false);
+      expect(view.nextAction.hint).toBe('Eén tafel eindigde gelijk. Speel die tafel opnieuw.');
+    });
+
+    it('plays the table again without touching the game that was played', async () => {
+      const tournament = await playLevelRound(NO_DRAW);
+      const match = tournament.rounds[0]!.matches[0]!;
+      const played = match.gameId!;
+
+      const replayed = await services.tournaments.replayMatch(tournament.id, match.id);
+      if (!replayed.ok) throw new Error('tafel niet opnieuw gestart');
+
+      // The game that was played is still there, still finished, still level.
+      const old = await storage.repositories.games.get(played);
+      expect(old?.status).toBe('finished');
+      expect(old?.result?.tie).toBe(true);
+
+      // The table now points at a fresh game with the same seating.
+      const now = replayed.tournament.rounds[0]!.matches[0]!.gameId;
+      expect(now).not.toBe(played);
+      expect(now).toBe(replayed.game.id);
+      expect(replayed.game.status).toBe('active');
+      expect(replayed.game.players.map((player) => player.name)).toEqual(
+        old!.players.map((player) => player.name),
+      );
+    });
+
+    it('counts the replacement once it has a winner, and then closes', async () => {
+      const level = await playLevelRound(NO_DRAW);
+      const match = level.rounds[0]!.matches[0]!;
+
+      const replayed = await services.tournaments.replayMatch(level.id, match.id);
+      if (!replayed.ok) throw new Error('tafel niet opnieuw gestart');
+
+      // A decisive replacement: side 0 runs away with it.
+      const tournament = await finishRound(replayed.tournament, (_table, side) =>
+        side === 0 ? 900 : 200,
+      );
+
+      const loadedTournament = await services.tournaments.load(tournament.id);
+      const standings = loadedTournament!.standings;
+      expect(standings.unresolvedTies).toEqual([]);
+      expect(standings.provisional).toBe(false);
+      expect(standings.entries.filter((entry) => entry.wins === 1)).toHaveLength(2);
+      expect(standings.entries.filter((entry) => entry.losses === 1)).toHaveLength(2);
+      expect(standings.entries[0]!.points).toBe(POINTS_FOR_WIN);
+
+      const closed = await services.tournaments.completeRound(
+        tournament.id,
+        tournament.rounds[0]!.id,
+      );
+      expect(closed.ok).toBe(true);
+    });
+  });
+
+  it('leaves a decisive game alone: two points for the win, none for the loss', async () => {
+    const tournament = await finishRound(
+      await playRound(await createTournament(NO_DRAW, SHARED_WIN, 4)),
+      (_table, side) => (side === 0 ? 900 : 200),
+    );
+
+    const loadedTournament = await services.tournaments.load(tournament.id);
+    const standings = loadedTournament!.standings;
+    expect(standings.unresolvedTies).toEqual([]);
+    expect(standings.provisional).toBe(false);
+
+    const winners = standings.entries.filter((entry) => entry.wins === 1);
+    const losers = standings.entries.filter((entry) => entry.losses === 1);
+    expect(winners).toHaveLength(2);
+    expect(losers).toHaveLength(2);
+    expect(winners.every((entry) => entry.points === POINTS_FOR_WIN)).toBe(true);
+    expect(losers.every((entry) => entry.points === POINTS_FOR_LOSS)).toBe(true);
+    expect(standings.entries.every((entry) => entry.matchesPlayed === 1)).toBe(true);
   });
 });

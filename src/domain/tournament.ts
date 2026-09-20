@@ -182,6 +182,24 @@ export function roundsOfDay(tournament: Tournament, dayId: TournamentDayId): Tou
   return tournament.rounds.filter((round) => round.dayId === dayId);
 }
 
+/**
+ * Whether a level game still has to be decided before the tournament can use it.
+ *
+ * The game engine only lets a game *finish* level when its own rule set says a
+ * level game is a shared win; every built-in instead plays another round until
+ * somebody leads, so with those a tie never reaches a tournament at all. When
+ * it does, the rule set has declared that both sides won — and a tournament
+ * that recognises no draw has been given no rule for what that is worth.
+ *
+ * So the tournament does not score it. The match sits exactly where a table
+ * whose game is still being played sits: no result yet. That is a state the
+ * tournament already has, which is why resolving this needed no new scoring
+ * rule — only the honesty to say the match is not finished.
+ */
+export function tieIsUndecided(settings: TournamentSettings, tie: boolean): boolean {
+  return tie && !settings.drawAllowed;
+}
+
 /** Everyone still taking part. Withdrawn participants are never paired again. */
 export function activeParticipants(tournament: Tournament): TournamentParticipant[] {
   return tournament.participants.filter((participant) => participant.status === 'active');

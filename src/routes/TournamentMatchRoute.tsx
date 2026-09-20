@@ -40,6 +40,13 @@ export function TournamentMatchRoute() {
     return outcome;
   });
 
+  const replay = useCommand(async () => {
+    if (!tournamentId || !matchId) return undefined;
+    const outcome = await services.tournaments.replayMatch(tournamentId, matchId);
+    if (outcome.ok) navigate(`/games/${outcome.game.id}`);
+    return outcome;
+  });
+
   if (days.status === 'loading') return <LoadingState label="Tafel laden…" />;
   if (days.status === 'missing') return <TournamentNotFound />;
 
@@ -92,15 +99,26 @@ export function TournamentMatchRoute() {
             </Note>
           ) : null}
 
-          {start.result && !start.result.ok && start.result.reason === 'validation' ? (
-            <ErrorPanel title="De partij kon niet worden gestart.">
-              <ul className="list-disc pl-5">
-                {start.result.issues.map((issue) => (
-                  <li key={issue.code}>{issue.message}</li>
-                ))}
-              </ul>
-            </ErrorPanel>
+          {match.needsDecision ? (
+            <Note lead="Gelijk geëindigd" tone="warn">
+              Deze partij eindigde in een gedeelde winst, en dit toernooi kent geen gelijkspel. De
+              tafel levert daarom nog niets op voor de stand, en de ronde kan pas worden afgesloten
+              als hij opnieuw is gespeeld. De gespeelde partij blijft ongewijzigd onder Partijen
+              staan.
+            </Note>
           ) : null}
+
+          {[start.result, replay.result].map((outcome, index) =>
+            outcome && !outcome.ok && outcome.reason === 'validation' ? (
+              <ErrorPanel key={index} title="De partij kon niet worden gestart.">
+                <ul className="list-disc pl-5">
+                  {outcome.issues.map((issue) => (
+                    <li key={issue.code}>{issue.message}</li>
+                  ))}
+                </ul>
+              </ErrorPanel>
+            ) : null,
+          )}
 
           {match.isBye ? (
             <Block className="px-4 py-4">
@@ -109,6 +127,24 @@ export function TournamentMatchRoute() {
                 Een vrije ronde levert geen punten op en telt niet als gespeelde partij.
               </p>
             </Block>
+          ) : match.needsDecision ? (
+            <div className="flex flex-col gap-2">
+              <Button
+                variant="primary"
+                size="xl"
+                block
+                disabled={replay.state === 'running'}
+                onClick={() => void replay.run(undefined)}
+              >
+                {match.actionLabel}
+                <ChevronRight />
+              </Button>
+              {match.gameId ? (
+                <LinkButton to={`/games/${match.gameId}`} size="md" block>
+                  Bekijk de gespeelde partij
+                </LinkButton>
+              ) : null}
+            </div>
           ) : match.gameId && !match.missingGame ? (
             <LinkButton to={`/games/${match.gameId}`} variant="primary" size="xl" block>
               {match.actionLabel}

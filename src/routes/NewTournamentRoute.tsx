@@ -11,6 +11,7 @@ import type {
 import {
   partyOverrides,
   partyShapeOf,
+  sharedWinIsPossible,
   teamLayoutsFor,
   type PartyShape,
 } from '@/application/viewmodels/setup';
@@ -226,6 +227,16 @@ export function NewTournamentRoute() {
   const issues: ValidationIssue[] = gameSettings
     ? validateTournamentSetup({ name: draft.name, settings, gameSettings, participants })
     : [];
+
+  /**
+   * Whether this combination can produce a table the tournament cannot score.
+   *
+   * A rule set that plays an extra round on a tie can never hand a tournament a
+   * level game, so "geen gelijkspel" costs nothing there. One that declares a
+   * level game a shared win can — and then the table has to be played again.
+   */
+  const tieCanHappen =
+    !settings.drawAllowed && ruleSet.status === 'ready' && sharedWinIsPossible(ruleSet.data);
   const blocking = issues.filter((issue) => issue.severity === 'error');
 
   const create = useCommand(async () => {
@@ -833,6 +844,15 @@ export function NewTournamentRoute() {
                   </div>
                 ))}
               </Block>
+
+              {tieCanHappen ? (
+                <Note lead="Let op" tone="warn">
+                  Deze regelset geeft bij een exact gelijkspel een gedeelde winst, en dit toernooi
+                  kent geen gelijkspel. Zo'n tafel levert dan niets op en moet opnieuw gespeeld
+                  worden. Zet «Gelijkspel telt mee» aan, of kies een regelset die een extra ronde
+                  laat spelen.
+                </Note>
+              ) : null}
 
               <Note lead="Daarna" tone="info">
                 Het toernooi wordt aangemaakt. De eerste ronde deel je in vanaf het overzicht, zodat

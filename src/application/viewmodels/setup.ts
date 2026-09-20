@@ -105,6 +105,18 @@ export function partyShapeOf(ruleSet: RuleSet): PartyShape {
   return { playerCount: players.default, teamCount: teams.count, mode: teams.mode };
 }
 
+/**
+ * Whether this rule set can hand back a game that ended level.
+ *
+ * A rule set that plays an extra round on an exact tie never finishes level —
+ * it keeps going until somebody leads. One that calls a level game a shared win
+ * does, and a tournament that recognises no draw then has a table it cannot
+ * score. The wizard says so before the organiser commits to both settings.
+ */
+export function sharedWinIsPossible(ruleSet: RuleSet): boolean {
+  return ruleSet.configuration.endGame.winner.tie === 'shared-win';
+}
+
 const TEAM_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
 export function buildGameSetup(ruleSet: RuleSet): GameSetupVM {

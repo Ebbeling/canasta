@@ -1,9 +1,10 @@
 import type { GameId } from '@/domain/ids';
-import type {
-  ParticipantId,
-  Tournament,
-  TournamentMatchId,
-  TournamentScoringMode,
+import {
+  tieIsUndecided,
+  type ParticipantId,
+  type Tournament,
+  type TournamentMatchId,
+  type TournamentScoringMode,
 } from '@/domain/tournament';
 import { sidesOf } from './history';
 
@@ -61,13 +62,12 @@ export interface TournamentStandings {
   /** True when at least one table of a settled round has no result yet. */
   provisional: boolean;
   /**
-   * Games that ended in a shared win while the tournament recognises no draw.
+   * Tables whose game ended level while the tournament recognises no draw.
    *
-   * Left unresolved on purpose, and reported rather than decided. A tournament
-   * may not overrule a game: the game already says both sides won, so both are
-   * counted as winners here. What a tournament without draws *ought* to do with
-   * that has never been specified, and inventing an answer would be a rule
-   * nobody agreed to.
+   * These contribute nothing — no win, no draw, no loss, no points, not even a
+   * Canasta score — because the tournament has no result for them yet. They are
+   * reported so the organiser can play the table again; until then the
+   * standings say they are provisional.
    */
   unresolvedTies: TournamentMatchId[];
 }
@@ -98,7 +98,6 @@ export function buildStandings(
   outcomes: readonly MatchOutcome[],
 ): TournamentStandings {
   const mode = tournament.settings.scoringMode;
-  const drawAllowed = tournament.settings.drawAllowed;
   const byMatch = new Map(outcomes.map((outcome) => [outcome.matchId, outcome]));
 
   const table = new Map<ParticipantId, ParticipantStanding>(
@@ -127,10 +126,19 @@ export function buildStandings(
         continue;
       }
 
+      // A level game the tournament cannot score yet. Nothing is read off it,
+      // exactly as nothing is read off a table still being played: the match
+      // has no tournament result until the organiser plays the table again.
+      if (tieIsUndecided(tournament.settings, outcome.tie)) {
+        unresolvedTies.push(match.id);
+        provisional = true;
+        continue;
+      }
+
+      // Past that guard a level game can only be a draw the tournament does
+      // recognise, so the game's own verdict is never reinterpreted here.
       const winners = new Set(outcome.winnerParticipantIds);
-      // A shared win is only a draw when the tournament recognises one.
       const isDraw = outcome.tie && winners.size > 1;
-      if (isDraw && !drawAllowed) unresolvedTies.push(match.id);
 
       for (const id of match.participantIds) {
         const entry = table.get(id);
@@ -139,7 +147,7 @@ export function buildStandings(
         entry.matchesPlayed += 1;
         entry.canastaScore += outcome.scoreByParticipant[id] ?? 0;
 
-        if (isDraw && drawAllowed) {
+        if (isDraw) {
           entry.draws += 1;
           entry.points += mode === 'tournament-points' ? POINTS_FOR_DRAW : 0;
         } else if (winners.has(id)) {

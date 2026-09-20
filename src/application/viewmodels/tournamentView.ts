@@ -4,6 +4,7 @@ import {
   currentDay,
   currentRound,
   roundsOfDay,
+  tieIsUndecided,
   type ParticipantId,
   type Tournament,
   type TournamentMatch,
@@ -99,6 +100,13 @@ export interface TournamentMatchVM {
   resultLines: string[];
   /** Set when the table points at a game that is no longer there. */
   missingGame: boolean;
+  /**
+   * Set when the game ended level and this tournament recognises no draw.
+   *
+   * The table is finished but has produced no tournament result; it has to be
+   * played again before the round can be closed.
+   */
+  needsDecision: boolean;
 }
 
 export interface TournamentRoundVM {
@@ -115,19 +123,37 @@ export interface TournamentRoundVM {
   canComplete: boolean;
   /** "2 bezig · 1 klaar · 1 nog niet gestart" */
   tableSummary: string;
-  counts: { waiting: number; busy: number; done: number };
+  counts: { waiting: number; busy: number; done: number; undecided: number };
 }
 
 function nameOf(tournament: Tournament, id: ParticipantId): string {
   return tournament.participants.find((participant) => participant.id === id)?.name ?? '—';
 }
 
-function matchStatus(match: TournamentMatch, games: Map<GameId, Game>): TournamentProgress {
-  if (match.kind === 'bye') return 'done';
-  if (!match.gameId) return 'waiting';
+/** What a table is doing, or what it is waiting for. */
+function matchStatus(
+  tournament: Tournament,
+  match: TournamentMatch,
+  games: Map<GameId, Game>,
+): { kind: TournamentProgress; missingGame: boolean; needsDecision: boolean } {
+  const plain = (kind: TournamentProgress) => ({
+    kind,
+    missingGame: false,
+    needsDecision: false,
+  });
+
+  if (match.kind === 'bye') return plain('done');
+  if (!match.gameId) return plain('waiting');
+
   const game = games.get(match.gameId);
-  if (!game) return 'attention';
-  return game.status === 'finished' ? 'done' : 'busy';
+  if (!game) return { kind: 'attention', missingGame: true, needsDecision: false };
+  if (game.status !== 'finished') return plain('busy');
+
+  if (tieIsUndecided(tournament.settings, game.result?.tie ?? false)) {
+    return { kind: 'attention', missingGame: false, needsDecision: true };
+  }
+
+  return plain('done');
 }
 
 export function buildMatch(
@@ -140,7 +166,7 @@ export function buildMatch(
     .filter((side) => side.length > 0)
     .map((side) => side.map((id) => nameOf(tournament, id)).join(' & '));
 
-  const kind = matchStatus(match, games);
+  const { kind, missingGame, needsDecision } = matchStatus(tournament, match, games);
   const game = match.gameId ? games.get(match.gameId) : undefined;
 
   const resultLines: string[] = [];
@@ -159,24 +185,29 @@ export function buildMatch(
     status:
       match.kind === 'bye'
         ? status('done', 'Vrij')
-        : kind === 'attention'
-          ? status('attention', 'Partij ontbreekt')
-          : status(kind),
+        : needsDecision
+          ? status('attention', 'Gelijk · onbeslist')
+          : missingGame
+            ? status('attention', 'Partij ontbreekt')
+            : status(kind),
     sideLines,
     participantLine: match.participantIds.map((id) => nameOf(tournament, id)).join(' · '),
     gameId: match.gameId,
     actionLabel:
       match.kind === 'bye'
         ? 'Deze ronde vrij'
-        : kind === 'waiting'
-          ? 'Partij starten'
-          : kind === 'busy'
-            ? 'Open partij'
-            : kind === 'attention'
-              ? 'Opnieuw starten'
-              : 'Uitslag',
+        : needsDecision
+          ? 'Tafel opnieuw spelen'
+          : kind === 'waiting'
+            ? 'Partij starten'
+            : kind === 'busy'
+              ? 'Open partij'
+              : missingGame
+                ? 'Opnieuw starten'
+                : 'Uitslag',
     resultLines,
-    missingGame: kind === 'attention',
+    missingGame,
+    needsDecision,
   };
 }
 
@@ -192,6 +223,7 @@ export function buildRound(
     waiting: playable.filter((match) => match.status.kind === 'waiting').length,
     busy: playable.filter((match) => match.status.kind === 'busy').length,
     done: playable.filter((match) => match.status.kind === 'done').length,
+    undecided: playable.filter((match) => match.needsDecision).length,
   };
 
   const day = tournament.days.find((entry) => entry.id === round.dayId);
@@ -199,6 +231,7 @@ export function buildRound(
   if (counts.busy > 0) parts.push(`${counts.busy} bezig`);
   if (counts.done > 0) parts.push(`${counts.done} klaar`);
   if (counts.waiting > 0) parts.push(`${counts.waiting} nog niet gestart`);
+  if (counts.undecided > 0) parts.push(`${counts.undecided} gelijk geëindigd`);
 
   return {
     id: round.id,
@@ -218,7 +251,8 @@ export function buildRound(
           ? status('busy')
           : status('waiting'),
     matches,
-    canComplete: round.status === 'confirmed' && roundIsResolved(round, games),
+    canComplete:
+      round.status === 'confirmed' && roundIsResolved(round, games, tournament.settings),
     tableSummary: parts.join(' · ') || 'Nog geen tafels',
     counts,
   };
@@ -360,7 +394,7 @@ export function buildStandingsView(loaded: LoadedTournament): TournamentStanding
     provisional: standings.provisional,
     unresolvedNote:
       standings.unresolvedTies.length > 0
-        ? `${standings.unresolvedTies.length === 1 ? 'Eén partij eindigde' : `${standings.unresolvedTies.length} partijen eindigden`} in een gedeelde winst, terwijl dit toernooi geen gelijkspel kent. Voor die situatie is geen toernooiregel vastgelegd. De uitslag van de partij blijft staan zoals hij is: beide kanten hebben gewonnen, en tellen hier ook zo mee.`
+        ? `${standings.unresolvedTies.length === 1 ? 'Eén tafel eindigde' : `${standings.unresolvedTies.length} tafels eindigden`} gelijk, terwijl dit toernooi geen gelijkspel kent. Zo'n partij levert hier niets op — geen winst, geen gelijkspel, geen verlies — tot de tafel opnieuw is gespeeld. De partij zelf blijft ongewijzigd onder Partijen staan.`
         : undefined,
   };
 }
@@ -394,8 +428,9 @@ export function buildDashboard(loaded: LoadedTournament): TournamentDashboardVM 
     }
   }
   if (standings.unresolvedTies.length > 0) {
+    const count = standings.unresolvedTies.length;
     attention.push(
-      'Een partij eindigde gelijk terwijl dit toernooi geen gelijkspel kent. Zie de toelichting bij de stand.',
+      `${count === 1 ? 'Eén tafel eindigde' : `${count} tafels eindigden`} gelijk terwijl dit toernooi geen gelijkspel kent. Speel ${count === 1 ? 'die tafel' : 'die tafels'} opnieuw om de ronde te kunnen afsluiten.`,
     );
   }
 
@@ -489,10 +524,18 @@ function buildNextAction(
     };
   }
 
+  const tables =
+    round.counts.done + round.counts.busy + round.counts.waiting + round.counts.undecided;
+
   return {
     kind: 'playRound',
     label: `Ronde ${round.sequence} afsluiten`,
-    hint: `Kan als alle tafels klaar zijn (${round.counts.done} van ${round.counts.done + round.counts.busy + round.counts.waiting}).`,
+    // An undecided table is the more specific obstacle, so it is named instead
+    // of being hidden inside a count that would say every table was finished.
+    hint:
+      round.counts.undecided > 0
+        ? `${round.counts.undecided === 1 ? 'Eén tafel eindigde' : `${round.counts.undecided} tafels eindigden`} gelijk. Speel ${round.counts.undecided === 1 ? 'die tafel' : 'die tafels'} opnieuw.`
+        : `Kan als alle tafels klaar zijn (${round.counts.done} van ${tables}).`,
     enabled: false,
   };
 }
