@@ -25,9 +25,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Node 24: de toernooiserver gebruikt de ingebouwde SQLite van Node
+      # (node:sqlite). Die zit zonder vlag pas in 23.4 en is stabiel in 24, en
+      # `npm run check` draait ook de servertests.
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       # `npm ci` en niet `npm install`: de lockfile is leidend in CI.

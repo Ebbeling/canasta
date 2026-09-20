@@ -24,3 +24,7 @@ $RECYCLE.BIN/
 # build-output van tsc -b
 tsconfig.tsbuildinfo
 *.log
+
+# Tournament server
+server/dist
+.data/

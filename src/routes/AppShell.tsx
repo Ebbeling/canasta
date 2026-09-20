@@ -1,4 +1,5 @@
 import { Outlet, useRouteError } from 'react-router';
+import { ServerLinkProvider } from '@/app/ServerLinkProvider';
 import { DesktopRail } from '@/ui/app/DesktopRail';
 import { PageBody } from '@/ui/app/Page';
 import { RailStepsProvider } from '@/ui/app/RailStepsProvider';
@@ -19,6 +20,9 @@ import { ErrorPanel, LinkButton, PageTitle } from '@/ui/common/primitives';
  */
 export function AppShell() {
   return (
+    // Inside the router on purpose: the live stream follows whichever
+    // tournament is on screen, which means it needs the route parameters.
+    <ServerLinkProvider>
     <RailStepsProvider>
     <div className="min-h-dvh md:grid md:grid-cols-[auto_minmax(0,1fr)]">
       <a
@@ -35,6 +39,7 @@ export function AppShell() {
       </main>
     </div>
     </RailStepsProvider>
+    </ServerLinkProvider>
   );
 }
 

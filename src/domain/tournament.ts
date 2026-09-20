@@ -20,6 +20,7 @@ export type ParticipantId = string;
 export type TournamentDayId = string;
 export type TournamentRoundId = string;
 export type TournamentMatchId = string;
+export type TournamentTableId = string;
 
 /**
  * Whether the schedule is known in advance.
@@ -133,6 +134,15 @@ export type TournamentMatchKind = 'game' | 'bye';
 export interface TournamentMatch {
   id: TournamentMatchId;
   tableNumber: number;
+  /**
+   * The physical table this round is played at.
+   *
+   * Optional because a tournament created before physical tables existed has
+   * none, and because a bye is played at no table at all. Where it is set it is
+   * the stable identity: `tableNumber` is a label that can be renumbered, this
+   * is what a device is paired to.
+   */
+  tableId?: TournamentTableId;
   kind: TournamentMatchKind;
   /**
    * Who sits there, in seat order. Side `i` of the game is made of the
@@ -142,6 +152,32 @@ export interface TournamentMatch {
   participantIds: ParticipantId[];
   /** Set when the game behind this table has been created. */
   gameId?: GameId;
+  /**
+   * Bumped on every change to this match, for optimistic concurrency.
+   *
+   * A device submitting a result states the revision it was looking at; a
+   * server that has moved on rejects it rather than overwriting a newer
+   * decision. Absent means "never changed since it was created".
+   */
+  revision?: number;
+}
+
+/**
+ * A physical table in the room.
+ *
+ * Deliberately not the same thing as a match. A match is one round's assignment
+ * and changes every round; the table is the furniture, and the device standing
+ * on it keeps the same identity all tournament long. That is what lets a QR
+ * code be printed once and stay valid.
+ */
+export interface TournamentTable {
+  id: TournamentTableId;
+  /** What the table is called in the room: 1, 2, 3 … */
+  number: number;
+  /** An optional human name, e.g. "bij het raam". */
+  name?: string;
+  /** A table taken out of use keeps its history but gets no new matches. */
+  active: boolean;
 }
 
 export interface Tournament {
@@ -153,6 +189,20 @@ export interface Tournament {
   participants: TournamentParticipant[];
   days: TournamentDay[];
   rounds: TournamentRound[];
+  /**
+   * The physical tables of this tournament.
+   *
+   * Optional: a tournament played on one device never needs them, and every
+   * tournament created before multi-device has none.
+   */
+  tables?: TournamentTable[];
+  /**
+   * Bumped on every administrative change, for optimistic concurrency.
+   *
+   * Covers the tournament and round lifecycle; a match carries its own so two
+   * tables finishing at once do not reject one another.
+   */
+  revision?: number;
   createdAt: string;
   updatedAt: string;
   startedAt?: string;
@@ -219,4 +269,53 @@ export function settledRounds(tournament: Tournament): TournamentRound[] {
  */
 export function playsIndividually(settings: TournamentGameSettings): boolean {
   return settings.participantsPerMatch === settings.teamsPerMatch;
+}
+
+/* ------------------------------------------------------- physical tables */
+
+/** The tables of a tournament, in room order. Never undefined for a caller. */
+export function tablesOf(tournament: Tournament): TournamentTable[] {
+  return [...(tournament.tables ?? [])].sort((a, b) => a.number - b.number);
+}
+
+/** The tables that may still be given a match. */
+export function activeTables(tournament: Tournament): TournamentTable[] {
+  return tablesOf(tournament).filter((table) => table.active);
+}
+
+export function tableById(
+  tournament: Tournament,
+  id: TournamentTableId,
+): TournamentTable | undefined {
+  return tournament.tables?.find((table) => table.id === id);
+}
+
+/**
+ * The match a physical table is playing in the round that is running.
+ *
+ * Matched on `tableId` — never on position in an array and never on the table
+ * number, which is a label the organiser may change.
+ */
+export function matchAtTable(
+  tournament: Tournament,
+  tableId: TournamentTableId,
+): { round: TournamentRound; match: TournamentMatch } | undefined {
+  const round = currentRound(tournament);
+  if (!round) return undefined;
+
+  const match = round.matches.find((entry) => entry.tableId === tableId);
+  return match ? { round, match } : undefined;
+}
+
+/** How many physical tables a round of this size needs. */
+export function tablesNeeded(matches: readonly { kind: TournamentMatchKind }[]): number {
+  return matches.filter((match) => match.kind === 'game').length;
+}
+
+export function revisionOf(tournament: Tournament): number {
+  return tournament.revision ?? 0;
+}
+
+export function matchRevision(match: TournamentMatch): number {
+  return match.revision ?? 0;
 }

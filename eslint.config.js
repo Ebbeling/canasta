@@ -11,7 +11,7 @@ import prettier from 'eslint-config-prettier';
  * Zie CANASTA_PWA_SPECIFICATION.md §36.
  */
 export default tseslint.config(
-  { ignores: ['dist', 'dev-dist', 'coverage', 'node_modules'] },
+  { ignores: ['dist', 'dev-dist', 'coverage', 'node_modules', 'server/dist'] },
 
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -139,6 +139,73 @@ export default tseslint.config(
             '@/rules/initialMeld/*',
             '@/rules/expression/*',
             '@/tournament/*',
+          ],
+        },
+      ],
+    },
+  },
+
+  // --- Laaggrens 4b: de netwerklaag is een adapter, geen scherm en geen opslag.
+  //     Hij kent het contract, de domeintypes en de application-interfaces —
+  //     en verder niets. Geen React, want dit moet ook buiten een component
+  //     werken; geen Dexie, want de server is de bron; geen UI.
+  {
+    files: ['src/net/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            'react',
+            'react-*',
+            'dexie',
+            'dexie-*',
+            '@/storage/*',
+            '@/ui/*',
+            '@/routes/*',
+            '@/hooks/*',
+            '@/app/*',
+            '@/scoring/*',
+            '@/rules/builtin*',
+          ],
+        },
+      ],
+    },
+  },
+
+  // --- Laaggrens 6: de server draait op Node en hergebruikt de application-
+  //     laag. Geen React, geen Dexie, geen browser-opslag, geen UI.
+  {
+    files: ['server/**/*.ts'],
+    languageOptions: { globals: { ...globals.node } },
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: ['react', 'react-*', 'dexie', 'dexie-*', '@/storage/*', '@/ui/*', '@/routes/*', '@/hooks/*', '@/app/*'],
+        },
+      ],
+    },
+  },
+
+  // --- Laaggrens 7: transport beslist niets.
+  //     De HTTP-laag mag geen toernooiregel, geen paring en geen score kennen;
+  //     hij leest een verzoek, geeft het door aan server/src/app en schrijft
+  //     het antwoord. Zie ook de architectuurtest.
+  {
+    files: ['server/src/http/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            '@/tournament/*',
+            '@/scoring/*',
+            '@/rules/builtin*',
+            '@/rules/registry/*',
+            '@/rules/resolve/*',
+            '@/application/services/*',
+            '../storage/*',
           ],
         },
       ],

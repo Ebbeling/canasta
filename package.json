@@ -15,11 +15,17 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run typecheck && npm run lint && npm run test:run"
+    "check": "npm run typecheck && npm run lint && npm run test:run",
+    "server:build": "vite build --config server/vite.config.ts",
+    "server:start": "node server/dist/main.js",
+    "server:test": "vitest run server",
+    "server:check": "npm run typecheck && npm run lint && npm run server:test",
+    "serve:local": "npm run build && npm run server:build && npm run server:start"
   },
   "dependencies": {
     "dexie": "^4.0.11",
     "dexie-react-hooks": "^1.1.7",
+    "qrcode-generator": "^2.0.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router": "^7.1.1",

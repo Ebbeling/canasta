@@ -4,9 +4,14 @@ import type { ValidationIssue } from '@/domain/result';
 import { hasErrors } from '@/domain/result';
 import {
   activeParticipants,
+  activeTables,
   currentDay,
   currentRound,
+  matchRevision,
   playsIndividually,
+  revisionOf,
+  tablesNeeded,
+  tablesOf,
   tieIsUndecided,
   type ParticipantId,
   type Tournament,
@@ -18,6 +23,8 @@ import {
   type TournamentRound,
   type TournamentRoundId,
   type TournamentSettings,
+  type TournamentTable,
+  type TournamentTableId,
 } from '@/domain/tournament';
 import { emptyHistory, historyOf } from '@/tournament/history';
 import { participantSides } from '@/tournament/standings';
@@ -133,6 +140,35 @@ export interface TournamentService {
 
   withdraw(id: TournamentId, participantId: ParticipantId): Promise<TournamentOutcome>;
   reinstate(id: TournamentId, participantId: ParticipantId): Promise<TournamentOutcome>;
+
+  /* ----------------------------------------------------- physical tables */
+
+  /**
+   * The physical tables, in room order.
+   *
+   * A table is the furniture, not the assignment: it keeps its identity all
+   * tournament long, which is what lets one device stay paired to it while the
+   * match it plays changes every round.
+   */
+  listTables(id: TournamentId): Promise<TournamentTable[]>;
+  /** Adds one table, numbered after the highest there is. */
+  addTable(id: TournamentId, name?: string): Promise<TournamentOutcome>;
+  renameTable(id: TournamentId, tableId: TournamentTableId, name: string): Promise<TournamentOutcome>;
+  /** Takes a table out of use, or puts it back. Its history stays. */
+  setTableActive(
+    id: TournamentId,
+    tableId: TournamentTableId,
+    active: boolean,
+  ): Promise<TournamentOutcome>;
+
+  /**
+   * Records that something about one match changed, and returns the tournament.
+   *
+   * Only the match's own revision moves. That is what keeps two tables handing
+   * in a result at the same moment from rejecting each other over a number that
+   * has nothing to do with either of them.
+   */
+  touchMatch(id: TournamentId, matchId: string): Promise<TournamentOutcome>;
 }
 
 export interface TournamentServiceDeps {
@@ -372,8 +408,42 @@ export function createTournamentService(deps: TournamentServiceDeps): Tournament
     return outcomes;
   }
 
+  /**
+   * Stores the tournament and moves it one revision on.
+   *
+   * Every administrative change goes through here, so the revision is a single
+   * monotonic counter a client can state it was looking at. A match carries its
+   * own revision as well: two tables finishing at the same moment must not
+   * reject one another over a number that has nothing to do with either.
+   */
   async function save(tournament: Tournament): Promise<Tournament> {
-    return repositories.tournaments.update({ ...tournament, updatedAt: clock.now() });
+    return repositories.tournaments.update({
+      ...tournament,
+      revision: revisionOf(tournament) + 1,
+      updatedAt: clock.now(),
+    });
+  }
+
+  /**
+   * Makes sure there are at least `count` usable physical tables.
+   *
+   * Tables are created on demand rather than up front: a tournament played on
+   * one device never needs them, and a round that suddenly needs a fifth table
+   * should not have to be set up by hand first.
+   */
+  function withTables(tournament: Tournament, count: number): Tournament {
+    const existing = tablesOf(tournament);
+    if (existing.filter((table) => table.active).length >= count) return tournament;
+
+    const tables = [...existing];
+    let highest = tables.reduce((most, table) => Math.max(most, table.number), 0);
+
+    while (tables.filter((table) => table.active).length < count) {
+      highest += 1;
+      tables.push({ id: newId(), number: highest, active: true });
+    }
+
+    return { ...tournament, tables };
   }
 
   async function eligibleFor(tournament: Tournament): Promise<ParticipantId[]> {
@@ -552,6 +622,12 @@ export function createTournamentService(deps: TournamentServiceDeps): Tournament
         days = tournament.days.map((entry) => (entry.id === day!.id ? day! : entry));
       }
 
+      // The physical tables come first: every playing match gets one, so a
+      // device paired to table 2 finds its new match without being re-paired.
+      const seated = withTables(tournament, tablesNeeded(matches));
+      const free = activeTables(seated);
+
+      let next = 0;
       const round: TournamentRound = {
         id: newId(),
         dayId: day.id,
@@ -562,12 +638,14 @@ export function createTournamentService(deps: TournamentServiceDeps): Tournament
           id: newId(),
           tableNumber: match.tableNumber,
           kind: match.kind,
+          tableId: match.kind === 'game' ? free[next++]?.id : undefined,
           participantIds: [...match.participantIds],
+          revision: 0,
         })),
       };
 
       const saved = await save({
-        ...tournament,
+        ...seated,
         status: 'active',
         startedAt: tournament.startedAt ?? timestamp,
         days,
@@ -694,7 +772,9 @@ export function createTournamentService(deps: TournamentServiceDeps): Tournament
             : {
                 ...entry,
                 matches: entry.matches.map((one) =>
-                  one.id === match.id ? { ...one, gameId: outcome.game.id } : one,
+                  one.id === match.id
+                    ? { ...one, gameId: outcome.game.id, revision: matchRevision(one) + 1 }
+                    : one,
                 ),
               },
         ),
@@ -869,6 +949,88 @@ export function createTournamentService(deps: TournamentServiceDeps): Tournament
 
     replayMatch(id, matchId) {
       return service.startMatch(id, matchId, true);
+    },
+
+    async touchMatch(id, matchId) {
+      const tournament = await repositories.tournaments.get(id);
+      if (!tournament) return { ok: false, reason: 'notFound' };
+
+      const known = tournament.rounds.some((round) =>
+        round.matches.some((match) => match.id === matchId),
+      );
+      if (!known) return { ok: false, reason: 'notFound' };
+
+      const rounds = tournament.rounds.map((round) => ({
+        ...round,
+        matches: round.matches.map((match) =>
+          match.id === matchId ? { ...match, revision: matchRevision(match) + 1 } : match,
+        ),
+      }));
+
+      return { ok: true, tournament: await save({ ...tournament, rounds }) };
+    },
+
+    async listTables(id) {
+      const tournament = await repositories.tournaments.get(id);
+      return tournament ? tablesOf(tournament) : [];
+    },
+
+    async addTable(id, name) {
+      const tournament = await repositories.tournaments.get(id);
+      if (!tournament) return { ok: false, reason: 'notFound' };
+
+      const tables = tablesOf(tournament);
+      const highest = tables.reduce((most, table) => Math.max(most, table.number), 0);
+      const added: TournamentTable = {
+        id: newId(),
+        number: highest + 1,
+        name: name?.trim() || undefined,
+        active: true,
+      };
+
+      return { ok: true, tournament: await save({ ...tournament, tables: [...tables, added] }) };
+    },
+
+    async renameTable(id, tableId, name) {
+      const tournament = await repositories.tournaments.get(id);
+      if (!tournament) return { ok: false, reason: 'notFound' };
+
+      const tables = tablesOf(tournament).map((table) =>
+        table.id === tableId ? { ...table, name: name.trim() || undefined } : table,
+      );
+      return { ok: true, tournament: await save({ ...tournament, tables }) };
+    },
+
+    async setTableActive(id, tableId, active) {
+      const tournament = await repositories.tournaments.get(id);
+      if (!tournament) return { ok: false, reason: 'notFound' };
+
+      // A table that is playing right now cannot be retired mid-round: the
+      // device standing on it is looking at a match.
+      if (!active) {
+        const round = currentRound(tournament);
+        const playing =
+          round?.status === 'confirmed' &&
+          round.matches.some((match) => match.tableId === tableId);
+        if (playing) {
+          return {
+            ok: false,
+            reason: 'validation',
+            issues: [
+              {
+                code: 'tournament.tableInUse',
+                severity: 'error',
+                message: 'Deze tafel speelt op dit moment. Sluit eerst de ronde af.',
+              },
+            ],
+          };
+        }
+      }
+
+      const tables = tablesOf(tournament).map((table) =>
+        table.id === tableId ? { ...table, active } : table,
+      );
+      return { ok: true, tournament: await save({ ...tournament, tables }) };
     },
   };
 

@@ -92,7 +92,7 @@ export default defineConfig({
     // Standaard 'node': de domein-, regel- en score-tests hebben geen DOM nodig.
     // Tests die er wel een nodig hebben zetten bovenaan `// @vitest-environment jsdom`.
     environment: 'node',
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'server/**/*.test.ts'],
     setupFiles: ['./src/test/setup.ts'],
     coverage: {
       provider: 'v8',

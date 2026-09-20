@@ -1,6 +1,7 @@
 import { NavLink, useParams } from 'react-router';
 import { useScoreboard } from '@/hooks/useGameData';
 import { useTournamentDashboard } from '@/hooks/useTournamentData';
+import { useServerLink } from '@/app/serverLinkContext';
 import {
   BoardIcon,
   BookIcon,
@@ -104,6 +105,7 @@ function WizardContext({ steps }: { steps: RailStep[] }) {
  */
 function TournamentContext({ tournamentId }: { tournamentId: string }) {
   const dashboard = useTournamentDashboard(tournamentId);
+  const server = useServerLink();
 
   return (
     <>
@@ -143,6 +145,18 @@ function TournamentContext({ tournamentId }: { tournamentId: string }) {
             Icon: PeopleIcon,
             end: false,
           },
+          // Only where there is something to connect to. Without a server this
+          // destination would be a page explaining that it does nothing.
+          ...(server?.present
+            ? [
+                {
+                  to: `/tournaments/${tournamentId}/devices`,
+                  label: 'Tafels',
+                  Icon: TableIcon,
+                  end: false,
+                },
+              ]
+            : []),
         ].map(({ to, label, Icon, end }) => (
           <NavLink key={to} to={to} end={end} className={({ isActive }) => railClass(isActive)}>
             {({ isActive }) => (

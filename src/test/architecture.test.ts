@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { knowsTournaments, scoresAHand } from './tournamentBoundary';
 
@@ -116,6 +116,129 @@ describe('the tournament layer is pure', () => {
     const offenders = sourceFiles('src/tournament').filter((file) =>
       scoresAHand(readFileSync(file, 'utf8')),
     );
+    expect(offenders).toEqual([]);
+  });
+});
+
+/**
+ * The boundaries the tournament server has to keep.
+ *
+ * The whole claim of the multi-device feature is that the tournament rules are
+ * written once and run in two processes. That only stays true if the server is
+ * a *host* for the application layer rather than a second implementation of it,
+ * and if the pure layers never learn that a server exists. ESLint enforces the
+ * imports; these say why, and add the parts a linter cannot see.
+ */
+describe('the tournament server is a host, not a second brain', () => {
+  const serverFiles = sourceFiles('server/src').filter((file) => !file.includes('test'));
+  const transport = serverFiles.filter(
+    (file) => file.includes(`${sep}http${sep}`) || file.endsWith(`${sep}network.ts`),
+  );
+
+  it('has files to check', () => {
+    expect(serverFiles.length).toBeGreaterThan(8);
+    expect(transport.length).toBeGreaterThan(2);
+  });
+
+  it.each([
+    ['react', /from '(react|react-[^']*)'/],
+    ['dexie', /from 'dexie/],
+    ['the browser storage layer', new RegExp(String.raw`from '@/storage`)],
+    ['the UI', new RegExp(String.raw`from '@/(ui|routes|hooks|app)/`)],
+  ])('never imports %s', (_name, pattern) => {
+    const offenders = serverFiles.filter((file) => pattern.test(readFileSync(file, 'utf8')));
+    expect(offenders).toEqual([]);
+  });
+
+  it('keeps tournament rules out of the transport layer', () => {
+    const forbidden = [
+      new RegExp(String.raw`from '@/tournament/`),
+      new RegExp(String.raw`from '@/scoring/`),
+      new RegExp(String.raw`from '@/rules/builtin`),
+      /\bproposePairing\b/,
+      /\bbuildStandings\b/,
+      /\brecomputeGame\b/,
+    ];
+
+    for (const pattern of forbidden) {
+      const offenders = transport.filter((file) => pattern.test(readFileSync(file, 'utf8')));
+      expect({ pattern: pattern.source, offenders }).toEqual({
+        pattern: pattern.source,
+        offenders: [],
+      });
+    }
+  });
+
+  it('never scores a hand anywhere in the server', () => {
+    const offenders = serverFiles.filter((file) => scoresAHand(readFileSync(file, 'utf8')));
+    expect(offenders).toEqual([]);
+  });
+
+  it('keeps SQLite out of everything but the server storage layer', () => {
+    const everywhereElse = [
+      ...sourceFiles('src'),
+      ...serverFiles.filter((file) => !file.includes(`${sep}storage${sep}`)),
+    ].filter((file) => !file.includes('.test.'));
+
+    const offenders = everywhereElse.filter((file) =>
+      /node:sqlite|better-sqlite3/.test(readFileSync(file, 'utf8')),
+    );
+    expect(offenders).toEqual([]);
+  });
+});
+
+/**
+ * The network adapter is an adapter.
+ *
+ * It may know the contract and the domain's types; it may not know a screen, a
+ * database or a rule. Without this, "the client talks to the server" quietly
+ * becomes "the client decides things about tournaments".
+ */
+describe('the network layer stays an adapter', () => {
+  const net = sourceFiles('src/net').filter((file) => !file.includes('.test.'));
+
+  it('has files to check', () => {
+    expect(net.length).toBeGreaterThan(3);
+  });
+
+  it.each([
+    ['react', /from '(react|react-[^']*)'/],
+    ['dexie', /from 'dexie/],
+    ['storage', new RegExp(String.raw`from '@/storage`)],
+    ['the UI', new RegExp(String.raw`from '@/(ui|routes|hooks|app)/`)],
+    ['the scoring engine', new RegExp(String.raw`from '@/scoring/`)],
+  ])('never imports %s', (_name, pattern) => {
+    const offenders = net.filter((file) => pattern.test(readFileSync(file, 'utf8')));
+    expect(offenders).toEqual([]);
+  });
+});
+
+/**
+ * A table device is not an organiser.
+ *
+ * The server refuses out-of-scope requests — that is where the guarantee lives,
+ * and it has its own tests. This is the second line: the table screens must not
+ * even offer the organiser's verbs, because a button that always fails is worse
+ * than no button.
+ */
+describe('the table screens offer nothing an organiser does', () => {
+  const tableFiles = [
+    ...sourceFiles('src/ui/table'),
+    'src/routes/TableRoute.tsx',
+    'src/routes/TableRoundRoute.tsx',
+    'src/routes/TableShell.tsx',
+  ];
+
+  it.each([
+    ['confirmRound', /confirmRound/],
+    ['completeRound', /completeRound/],
+    ['finish', /\.finish\(/],
+    ['endDay', /endDay/],
+    ['withdraw', /withdraw/],
+    ['the pairing', /propose|pairing/i],
+    ['the tournament service', new RegExp(String.raw`services\.tournaments`)],
+  ])('never mentions %s', (_name, pattern) => {
+    const offenders = tableFiles.filter((file) => pattern.test(readFileSync(file, 'utf8')));
     expect(offenders).toEqual([]);
   });
 });

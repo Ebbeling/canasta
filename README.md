@@ -14,6 +14,9 @@ scorecalculator in één — bedoeld voor gebruik aan de kaarttafel, op een tele
 - Lokale opslag in IndexedDB — geen account, geen server, geen tracking
 - Volledig offline te gebruiken en te installeren als app
 - Export en import van een partij als één JSON-bestand
+- Toernooien met meerdere speeldagen, rondes en tafels
+- **Meerdere apparaten**: een lokale toernooiserver op een laptop, een telefoon per tafel en een
+  QR-code om ze te koppelen — zonder internet. Zie [`docs/TOURNAMENT_SERVER.md`](docs/TOURNAMENT_SERVER.md).
 
 Een gestarte partij bewaart de volledige regelset waarmee hij gespeeld is. Wijzigt een regelset
 later, dan verandert een oude partij daar niet door mee.
@@ -24,25 +27,40 @@ De regels zijn opgezocht bij gezaghebbende bronnen en niet verzonnen. Waar een b
 de app dat erbij in plaats van iets aan te nemen. Zie [`docs/RULESET_RESEARCH.md`](docs/RULESET_RESEARCH.md)
 voor de verantwoording per waarde, met bron en ophaaldatum.
 
-## Development
+## Een toernooi met meerdere tafels
 
-Op Windows, zonder zelf npm-commando's te typen:
+Op Windows, vanuit de projectmap:
 
 ```powershell
 .\serve.ps1
 ```
 
-Het script controleert Node.js en npm, installeert de dependencies als dat nodig is, start de
-Vite-devserver en opent de app. De app draait onder `/canasta/`.
+Dit start de **lokale toernooiserver**: die bedient de app, houdt het toernooi bij en toont het
+netwerkadres dat de tafels moeten openen. Internet is niet nodig; alle apparaten moeten wel op
+dezelfde WiFi zitten. Node.js 24 is vereist, omdat de server de SQLite van Node zelf gebruikt.
+
+De volledige uitleg — QR-codes, tafels, offline, back-up, firewall — staat in
+[`docs/TOURNAMENT_SERVER.md`](docs/TOURNAMENT_SERVER.md).
+
+## Development
+
+```powershell
+.\serve.ps1 -Dev    # de Vite-devserver, zonder toernooiserver
+```
 
 Rechtstreeks met npm kan ook:
 
 ```bash
 npm install
-npm run dev      # devserver
-npm run check    # typecheck + lint + tests
-npm run build    # productiebuild in dist/
-npm run preview  # productiebuild lokaal bekijken
+npm run dev            # devserver
+npm run check          # typecheck + lint + alle tests
+npm run build          # productiebuild in dist/
+npm run preview        # productiebuild lokaal bekijken
+
+npm run server:build   # de toernooiserver bouwen
+npm run server:start   # de toernooiserver draaien
+npm run server:test    # alleen de servertests
+npm run server:check   # typecheck + lint + servertests
 ```
 
 ## Documentatie
@@ -53,6 +71,8 @@ npm run preview  # productiebuild lokaal bekijken
 | [`docs/RULESET_RESEARCH.md`](docs/RULESET_RESEARCH.md) | Het regelonderzoek, met bron per waarde |
 | [`docs/EXPORT_IMPORT.md`](docs/EXPORT_IMPORT.md) | Het exportformaat |
 | [`docs/OFFLINE_CHECK.md`](docs/OFFLINE_CHECK.md) | Handmatige controles voor offline, export en import |
+| [`docs/TOURNAMENT_SERVER.md`](docs/TOURNAMENT_SERVER.md) | De lokale toernooiserver: opzetten, tafels koppelen, offline, back-up |
+| [`TOURNAMENT_TECHNICAL_SPECIFICATION.md`](TOURNAMENT_TECHNICAL_SPECIFICATION.md) | De toernooispecificatie |
 
 ## Deployment
 

@@ -18,6 +18,10 @@ import { TournamentStandingsRoute } from '@/routes/TournamentStandingsRoute';
 import { TournamentParticipantsRoute } from '@/routes/TournamentParticipantsRoute';
 import { TournamentMatchRoute } from '@/routes/TournamentMatchRoute';
 import { TournamentSettingsRoute } from '@/routes/TournamentSettingsRoute';
+import { TournamentTablesRoute } from '@/routes/TournamentTablesRoute';
+import { TableShell } from '@/routes/TableShell';
+import { TableRoute } from '@/routes/TableRoute';
+import { TableRoundRoute } from '@/routes/TableRoundRoute';
 
 /**
  * A data router with no loaders.
@@ -29,6 +33,23 @@ import { TournamentSettingsRoute } from '@/routes/TournamentSettingsRoute';
  * need manual revalidation at every mutation site.
  */
 export const routes = [
+  /*
+   * The table view has a frame of its own.
+   *
+   * Outside `AppShell` on purpose: that shell carries the organiser's rail and
+   * every destination in the app, and a device paired to one table must not be
+   * one tap away from the tournament settings. It is also the only route whose
+   * identity comes from the URL rather than from what is stored on the device.
+   */
+  {
+    path: '/table/:token',
+    element: <TableShell />,
+    errorElement: <RouteError />,
+    children: [
+      { index: true, element: <TableRoute /> },
+      { path: 'round', element: <TableRoundRoute /> },
+    ],
+  },
   {
     path: '/',
     element: <AppShell />,
@@ -60,6 +81,7 @@ export const routes = [
           { path: 'standings', element: <TournamentStandingsRoute /> },
           { path: 'participants', element: <TournamentParticipantsRoute /> },
           { path: 'tables/:matchId', element: <TournamentMatchRoute /> },
+          { path: 'devices', element: <TournamentTablesRoute /> },
           { path: 'settings', element: <TournamentSettingsRoute /> },
         ],
       },

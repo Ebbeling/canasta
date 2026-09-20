@@ -16,6 +16,7 @@ import {
 } from '@/application/viewmodels/tournamentView';
 import { buildRound } from '@/application/viewmodels/tournamentView';
 import { useServices } from '@/app/servicesContext';
+import { useServerTick } from '@/app/serverLinkContext';
 import { useLiveResult, type AsyncState } from './useLiveResult';
 
 /**
@@ -23,29 +24,39 @@ import { useLiveResult, type AsyncState } from './useLiveResult';
  *
  * Same shape as the game hooks: the view model is built inside the querier, so
  * Dexie memoises it and React never sees a tournament, a match or a game.
+ *
+ * Every querier also depends on `tick`. Locally that number never moves and
+ * Dexie's own change tracking does the work, exactly as before. With a
+ * tournament server it is the other half of the story: the server pushes
+ * "something changed", the tick moves, and these queries run again — which is
+ * why a round entered at table 3 appears on the organiser's dashboard without a
+ * single screen knowing that a network exists.
  */
 
 export function useTournamentList(
   filter?: TournamentListFilter,
 ): AsyncState<TournamentRowVM[]> {
   const services = useServices();
+  const tick = useServerTick();
   const key = JSON.stringify(filter ?? {});
 
   return useLiveResult(async () => {
     const summaries: TournamentSummary[] = await services.tournaments.list(filter);
     return summaries.map(buildTournamentRow);
-  }, [key]);
+  }, [key, tick]);
 }
 
 export function useTournament(id: TournamentId | undefined): AsyncState<LoadedTournament> {
   const services = useServices();
-  return useLiveResult(id ? () => services.tournaments.load(id) : null, [id]);
+  const tick = useServerTick();
+  return useLiveResult(id ? () => services.tournaments.load(id) : null, [id, tick]);
 }
 
 export function useTournamentDashboard(
   id: TournamentId | undefined,
 ): AsyncState<TournamentDashboardVM> {
   const services = useServices();
+  const tick = useServerTick();
   return useLiveResult(
     id
       ? async () => {
@@ -53,7 +64,7 @@ export function useTournamentDashboard(
           return loaded ? buildDashboard(loaded) : undefined;
         }
       : null,
-    [id],
+    [id, tick],
   );
 }
 
@@ -61,6 +72,7 @@ export function useTournamentStandings(
   id: TournamentId | undefined,
 ): AsyncState<TournamentStandingsVM> {
   const services = useServices();
+  const tick = useServerTick();
   return useLiveResult(
     id
       ? async () => {
@@ -68,12 +80,13 @@ export function useTournamentStandings(
           return loaded ? buildStandingsView(loaded) : undefined;
         }
       : null,
-    [id],
+    [id, tick],
   );
 }
 
 export function useTournamentDays(id: TournamentId | undefined): AsyncState<TournamentDayVM[]> {
   const services = useServices();
+  const tick = useServerTick();
   return useLiveResult(
     id
       ? async () => {
@@ -81,7 +94,7 @@ export function useTournamentDays(id: TournamentId | undefined): AsyncState<Tour
           return loaded ? buildDays(loaded) : undefined;
         }
       : null,
-    [id],
+    [id, tick],
   );
 }
 
@@ -89,6 +102,7 @@ export function useTournamentParticipants(
   id: TournamentId | undefined,
 ): AsyncState<TournamentParticipantsVM> {
   const services = useServices();
+  const tick = useServerTick();
   return useLiveResult(
     id
       ? async () => {
@@ -96,7 +110,7 @@ export function useTournamentParticipants(
           return loaded ? buildParticipants(loaded) : undefined;
         }
       : null,
-    [id],
+    [id, tick],
   );
 }
 
@@ -106,6 +120,7 @@ export function useTournamentRound(
   sequence: number | undefined,
 ): AsyncState<TournamentRoundVM> {
   const services = useServices();
+  const tick = useServerTick();
   return useLiveResult(
     id && sequence !== undefined
       ? async () => {
@@ -115,15 +130,16 @@ export function useTournamentRound(
           return round ? buildRound(loaded.tournament, round, loaded.games) : undefined;
         }
       : null,
-    [id, sequence],
+    [id, sequence, tick],
   );
 }
 
 /** The tournament to put at the top of Home, if one is running. */
 export function useRunningTournament(): AsyncState<TournamentRowVM> {
   const services = useServices();
+  const tick = useServerTick();
   return useLiveResult(async () => {
     const summary = await services.tournaments.lastActive();
     return summary ? buildTournamentRow(summary) : undefined;
-  }, []);
+  }, [tick]);
 }
