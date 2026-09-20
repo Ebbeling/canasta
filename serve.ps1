@@ -28,6 +28,11 @@
     .\serve.ps1 -Dev
 
 .EXAMPLE
+    # Achter een reverse proxy of op een eigen hostnaam. Dan kan de server
+    # het adres niet zelf afleiden, dus geef je het op; de QR-codes volgen.
+    .\serve.ps1 -PublicUrl https://toernooi.mijnclub.nl
+
+.EXAMPLE
     # Als Windows het script weigert vanwege de Execution Policy:
     powershell -ExecutionPolicy Bypass -File .\serve.ps1
 #>
@@ -40,7 +45,8 @@ param(
     [switch] $Rebuild,
     [switch] $Dev,
     [int] $DevPort = 5173,
-    [string] $Database
+    [string] $Database,
+    [string] $PublicUrl
 )
 
 $ErrorActionPreference = 'Stop'
@@ -364,6 +370,9 @@ if ($lanUrl) {
     Write-Host "  via $($lan.InterfaceAlias)" -ForegroundColor DarkGray
     Write-Host ''
     Write-Host 'Alle apparaten moeten op dezelfde WiFi zitten. Internet is niet nodig.'
+    Write-Host ''
+    Write-Host 'Hieronder toont de server zelf onder "Tafels koppelen via" welk adres' -ForegroundColor DarkGray
+    Write-Host 'de QR-codes krijgen. Dat adres is leidend.' -ForegroundColor DarkGray
 }
 elseif ($LocalOnly) {
     Write-Host 'Alleen deze laptop: -LocalOnly is opgegeven, dus tafels kunnen er niet bij.' -ForegroundColor Yellow
@@ -381,6 +390,10 @@ Write-Host ''
 #    netjes stopt. Node krijgt SIGINT door en sluit de database zelf af.
 $serverArgs = @($serverBundle, '--port', "$selectedPort", '--host', $bindHost, '--base', $basePath)
 if ($Database) { $serverArgs += @('--database', $Database) }
+# Alleen nodig wanneer de server het adres niet zelf kan vinden: achter een
+# proxy of op een eigen hostnaam. Anders bepaalt de server het, en dat is de
+# enige bron voor de QR-codes.
+if ($PublicUrl) { $serverArgs += @('--public-url', $PublicUrl) }
 
 $serverExit = 0
 try {

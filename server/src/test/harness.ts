@@ -38,6 +38,15 @@ export interface StartOptions {
   /** Reuse an existing directory, to restart onto the same database. */
   directory?: string;
   webRoot?: string;
+  /**
+   * Pretend this machine is on a network.
+   *
+   * The tests bind the loopback device, where the honest answer is
+   * `localhost`. A table join link is about the *other* devices in the room,
+   * so proving it uses the LAN address means saying which one there is.
+   */
+  lan?: { address: string; name: string };
+  publicUrl?: string;
 }
 
 export async function startTestServer(options: StartOptions = {}): Promise<TestServer> {
@@ -51,15 +60,28 @@ export async function startTestServer(options: StartOptions = {}): Promise<TestS
     webRoot: options.webRoot ?? join(directory, 'no-web-build'),
   };
 
+  // Port 0 means "whatever is free", so the real one only exists after
+  // `listen()`. The container reads it through a function for that reason.
+  let bound = 0;
+
   const container = createContainer({
     databasePath: config.databasePath,
     basePath: config.basePath,
+    origin: {
+      publicUrl: options.publicUrl,
+      // A test that supplies a LAN address is asking about the network case,
+      // so the bind host has to be the one the real server uses there.
+      host: options.lan ? '0.0.0.0' : config.host,
+      port: () => bound,
+      lan: () => options.lan,
+    },
   });
 
   const server = createCanastaServer(container, config);
   await server.listen();
 
   const port = server.address()?.port ?? 0;
+  bound = port;
   const base = `http://127.0.0.1:${port}`;
 
   return {

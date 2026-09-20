@@ -5,6 +5,7 @@ import { useTournamentDashboard } from '@/hooks/useTournamentData';
 import { useCommand } from '@/hooks/useCommand';
 import { useServices } from '@/app/servicesContext';
 import { useServerLink } from '@/app/serverLinkContext';
+import { isReachableFromOtherDevices } from '@/net/protocol';
 import { AppBar } from '@/ui/app/AppBar';
 import { PageBody } from '@/ui/app/Page';
 import { Plus } from '@/ui/common/icons';
@@ -43,6 +44,7 @@ export function TournamentTablesRoute() {
 
   const [showing, setShowing] = useState<string | undefined>();
   const [confirming, setConfirming] = useState<string | undefined>();
+  const [copied, setCopied] = useState<string | undefined>();
 
   const add = useCommand(async () =>
     tournamentId ? services.tournaments.addTable(tournamentId) : undefined,
@@ -52,6 +54,17 @@ export function TournamentTablesRoute() {
   if (dashboard.status === 'missing') return <TournamentNotFound />;
 
   const offline = server?.present === true && server.connected === false;
+
+  /*
+   * A link nobody else can open.
+   *
+   * The server builds these from its own LAN address, so this only happens
+   * when there is no network or it was started with `-LocalOnly`. Saying so
+   * beats printing a QR code that works on exactly one device in the room.
+   */
+  const unreachable =
+    tables.state.status === 'ready' &&
+    tables.state.tables.some((entry) => entry.joinUrl && !isReachableFromOtherDevices(entry.joinUrl));
 
   return (
     <PageBody width="wide">
@@ -91,6 +104,14 @@ export function TournamentTablesRoute() {
                 tafel blijft staan; bij elke nieuwe ronde verschijnt de juiste partij vanzelf.
               </Note>
 
+              {unreachable ? (
+                <Note lead="Niet te scannen" tone="warn">
+                  Deze links wijzen naar deze laptop zelf, niet naar het netwerk. Een telefoon kan
+                  ze dus niet openen. Controleer of de laptop met de WiFi verbonden is en of de
+                  server zonder <code>-LocalOnly</code> is gestart.
+                </Note>
+              ) : null}
+
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {tables.state.tables.map((entry) => (
                   <Card key={entry.table.id} className="flex flex-col gap-3 px-4.5 py-4">
@@ -123,6 +144,8 @@ export function TournamentTablesRoute() {
 
                     {showing === entry.table.id && entry.joinUrl ? (
                       <div className="flex flex-col items-center gap-2 py-1">
+                        {/* One URL, straight from the server: the code and the
+                            copied link are the same string. */}
                         <QrCode
                           value={entry.joinUrl}
                           size={180}
@@ -131,6 +154,19 @@ export function TournamentTablesRoute() {
                         <p className="break-all text-center text-micro text-muted">
                           {entry.joinUrl}
                         </p>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            const url = entry.joinUrl;
+                            if (!url) return;
+                            void navigator.clipboard?.writeText(url).then(() => {
+                              setCopied(entry.table.id);
+                              setTimeout(() => setCopied(undefined), 2000);
+                            });
+                          }}
+                        >
+                          {copied === entry.table.id ? 'Gekopieerd' : 'Link kopiëren'}
+                        </Button>
                       </div>
                     ) : null}
 

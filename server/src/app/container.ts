@@ -5,6 +5,7 @@ import { createSqliteRepositories } from '../storage/repositories';
 import { createSessionStore, type SessionStore } from '../storage/sessions';
 import { createIdempotencyStore, type IdempotencyStore } from '../storage/idempotency';
 import { openDatabase, type Database } from '../storage/sqlite';
+import { primaryLanAddress, resolveOrigin, type LanAddress } from '../network';
 import { createHub, type Hub } from './hub';
 import { createTournamentApi, type TournamentApi } from './tournamentApi';
 
@@ -26,6 +27,8 @@ export interface Container {
   idempotency: IdempotencyStore;
   hub: Hub;
   api: TournamentApi;
+  /** The canonical origin every outward-facing link is built from. */
+  origin(): string;
   close(): void;
 }
 
@@ -33,12 +36,26 @@ export interface ContainerOptions {
   databasePath: string;
   basePath: string;
   clock?: Clock;
+  /** How to reach this server from another device. See `resolveOrigin`. */
+  origin?: {
+    publicUrl?: string;
+    host: string;
+    /**
+     * A function when the port is not known yet: asking for port 0 lets the
+     * operating system choose, and the answer only exists once the socket is
+     * bound. That is how the tests avoid fighting over a fixed port.
+     */
+    port: number | (() => number);
+    /** Injected so a test can pretend to be on a network. */
+    lan?: () => LanAddress | undefined;
+  };
 }
 
 export function createContainer({
   databasePath,
   basePath,
   clock = systemClock,
+  origin,
 }: ContainerOptions): Container {
   const db = openDatabase({ path: databasePath });
 
@@ -52,7 +69,26 @@ export function createContainer({
   const idempotency = createIdempotencyStore(db, clock);
   const hub = createHub(clock);
 
-  const api = createTournamentApi({ services, sessions, idempotency, hub }, basePath);
+  /*
+   * Resolved per call, not once at start-up: a laptop that is carried to a
+   * different network between two rounds should hand out QR codes for the
+   * network it is on now.
+   */
+  const serverOrigin = () =>
+    origin
+      ? resolveOrigin({
+          publicUrl: origin.publicUrl,
+          host: origin.host,
+          port: typeof origin.port === 'function' ? origin.port() : origin.port,
+          lan: (origin.lan ?? primaryLanAddress)(),
+        })
+      : 'http://localhost';
+
+  const api = createTournamentApi(
+    { services, sessions, idempotency, hub },
+    basePath,
+    serverOrigin,
+  );
 
   return {
     db,
@@ -61,6 +97,7 @@ export function createContainer({
     idempotency,
     hub,
     api,
+    origin: serverOrigin,
     close() {
       hub.closeAll();
       db.close();

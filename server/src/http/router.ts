@@ -19,8 +19,6 @@ export interface RequestContext {
   params: Record<string, string>;
   query: URLSearchParams;
   url: URL;
-  /** The origin this request arrived on — what a QR code must point back at. */
-  origin: string;
   /** Parsed JSON body, or undefined when there was none. */
   body?: unknown;
 }

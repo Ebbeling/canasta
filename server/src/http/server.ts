@@ -136,13 +136,13 @@ export function createCanastaServer(container: Container, config: ServerConfig):
 
   /* -------------------------------------------------------------- tables */
 
-  router.get(`${API_PREFIX}/tournaments/:id/tables`, async ({ response, params, origin }) => {
-    const outcome = await container.api.tables(params.id!, origin);
+  router.get(`${API_PREFIX}/tournaments/:id/tables`, async ({ response, params }) => {
+    const outcome = await container.api.tables(params.id!);
     if (!outcome.ok) return sendOutcome(response, outcome);
     sendJson(response, 200, { tables: outcome.value });
   });
 
-  router.post(`${API_PREFIX}/tournaments/:id/tables`, async ({ response, params, body, origin }) => {
+  router.post(`${API_PREFIX}/tournaments/:id/tables`, async ({ response, params, body }) => {
     const name = typeof (body as { name?: unknown })?.name === 'string'
       ? ((body as { name: string }).name)
       : undefined;
@@ -150,22 +150,22 @@ export function createCanastaServer(container: Container, config: ServerConfig):
     const added = await container.api.execute(params.id!, { command: { kind: 'addTable', name } });
     if (!added.ok) return sendOutcome(response, added);
 
-    const outcome = await container.api.tables(params.id!, origin);
+    const outcome = await container.api.tables(params.id!);
     if (!outcome.ok) return sendOutcome(response, outcome);
     sendJson(response, 201, { tables: outcome.value });
   });
 
   router.post(
     `${API_PREFIX}/tournaments/:id/tables/:tableId/session`,
-    async ({ response, params, origin }) => {
-      sendOutcome(response, await container.api.issueSession(params.id!, params.tableId!, origin), 201);
+    async ({ response, params }) => {
+      sendOutcome(response, await container.api.issueSession(params.id!, params.tableId!), 201);
     },
   );
 
   router.delete(
     `${API_PREFIX}/tournaments/:id/tables/:tableId/session`,
-    async ({ response, params, origin }) => {
-      sendOutcome(response, await container.api.revokeSession(params.id!, params.tableId!, origin));
+    async ({ response, params }) => {
+      sendOutcome(response, await container.api.revokeSession(params.id!, params.tableId!));
     },
   );
 
@@ -243,9 +243,11 @@ export function createCanastaServer(container: Container, config: ServerConfig):
   /* --------------------------------------------------------- the server */
 
   const http = createHttpServer(async (request, response) => {
+    // Only used to parse the path and the query. What a link must point at is
+    // decided by the server, not by whoever happens to be asking — see
+    // `resolveOrigin`.
     const host = request.headers.host ?? `localhost:${config.port}`;
     const url = new URL(request.url ?? '/', `http://${host}`);
-    const origin = `http://${host}`;
 
     try {
       const route = router.match(request.method ?? 'GET', url.pathname);
@@ -257,7 +259,6 @@ export function createCanastaServer(container: Container, config: ServerConfig):
           params: route.params,
           query: url.searchParams,
           url,
-          origin,
           body:
             request.method === 'POST' || request.method === 'PUT'
               ? await readJsonBody(request)

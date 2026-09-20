@@ -25,6 +25,7 @@ import type {
 } from '@/net/protocol';
 import type { ProposedMatch } from '@/tournament/pairing';
 import { TOURNAMENT_PROTOCOL_VERSION } from '@/net/protocol';
+import { tableJoinUrl } from '../network';
 import type { Hub } from './hub';
 import type { IdempotencyStore } from '../storage/idempotency';
 import type { SessionStore, TableSession } from '../storage/sessions';
@@ -80,9 +81,9 @@ export interface TournamentApi {
   ): Promise<Outcome<PairingResponse>>;
   /** Checks an arrangement the organiser rearranged by hand. */
   validatePairing(id: TournamentId, matches: ProposedMatch[]): Promise<Outcome<PairingResponse>>;
-  tables(id: TournamentId, origin: string): Promise<Outcome<TableView[]>>;
-  issueSession(id: TournamentId, tableId: TournamentTableId, origin: string): Promise<Outcome<TableView>>;
-  revokeSession(id: TournamentId, tableId: TournamentTableId, origin: string): Promise<Outcome<TableView>>;
+  tables(id: TournamentId): Promise<Outcome<TableView[]>>;
+  issueSession(id: TournamentId, tableId: TournamentTableId): Promise<Outcome<TableView>>;
+  revokeSession(id: TournamentId, tableId: TournamentTableId): Promise<Outcome<TableView>>;
 
   /* --------------------------------------------------------- table scope */
 
@@ -99,15 +100,18 @@ export interface TournamentApi {
   ): Promise<Outcome<TableState>>;
 }
 
-/** The join URL a QR code carries. Built from the origin the request came in on. */
-export function joinUrl(origin: string, basePath: string, token: string): string {
-  const base = basePath.endsWith('/') ? basePath : `${basePath}/`;
-  return `${origin.replace(/\/$/, '')}${base}table/${token}`;
-}
-
 export function createTournamentApi(
   { services, sessions, idempotency, hub }: TournamentApiDeps,
   basePath: string,
+  /**
+   * Where a device has to go to reach this server.
+   *
+   * A function rather than a string, because a laptop can change networks
+   * between two rounds. Deliberately not derived from the request either: the
+   * organiser asking for the QR code is sitting at `localhost`, and the phone
+   * that has to scan it is not.
+   */
+  origin: () => string,
 ): TournamentApi {
   async function loadState(id: TournamentId): Promise<TournamentState | undefined> {
     const loaded = await services.tournaments.load(id);
@@ -126,8 +130,9 @@ export function createTournamentApi(
     return state ? { ok: true, value: state } : fail(404, 'notFound', 'Dit toernooi bestaat niet.');
   }
 
-  function tableViews(tournament: Tournament, origin: string): TableView[] {
+  function tableViews(tournament: Tournament): TableView[] {
     const connected = hub.connectedTables(tournament.id);
+    const base = origin();
 
     return tablesOf(tournament).map((table) => {
       const session = sessions.forTable(tournament.id, table.id);
@@ -136,7 +141,7 @@ export function createTournamentApi(
         connected: connected.has(table.id),
         lastSeenAt: session?.lastSeenAt,
         hasSession: session !== undefined,
-        joinUrl: session ? joinUrl(origin, basePath, session.token) : undefined,
+        joinUrl: session ? tableJoinUrl(base, basePath, session.token) : undefined,
       };
     });
   }
@@ -376,13 +381,13 @@ export function createTournamentApi(
       });
     },
 
-    async tables(id, origin) {
+    async tables(id) {
       const tournament = await services.tournaments.get(id);
       if (!tournament) return fail(404, 'notFound', 'Dit toernooi bestaat niet.');
-      return { ok: true, value: tableViews(tournament, origin) };
+      return { ok: true, value: tableViews(tournament) };
     },
 
-    async issueSession(id, tableId, origin) {
+    async issueSession(id, tableId) {
       const tournament = await services.tournaments.get(id);
       if (!tournament) return fail(404, 'notFound', 'Dit toernooi bestaat niet.');
       if (!tableById(tournament, tableId)) {
@@ -392,18 +397,18 @@ export function createTournamentApi(
       sessions.issue(id, tableId);
       hub.publish('tables', id);
 
-      const view = tableViews(tournament, origin).find((entry) => entry.table.id === tableId);
+      const view = tableViews(tournament).find((entry) => entry.table.id === tableId);
       return view ? { ok: true, value: view } : fail(404, 'notFound', 'Deze tafel bestaat niet.');
     },
 
-    async revokeSession(id, tableId, origin) {
+    async revokeSession(id, tableId) {
       const tournament = await services.tournaments.get(id);
       if (!tournament) return fail(404, 'notFound', 'Dit toernooi bestaat niet.');
 
       sessions.revoke(id, tableId);
       hub.publish('tables', id);
 
-      const view = tableViews(tournament, origin).find((entry) => entry.table.id === tableId);
+      const view = tableViews(tournament).find((entry) => entry.table.id === tableId);
       return view ? { ok: true, value: view } : fail(404, 'notFound', 'Deze tafel bestaat niet.');
     },
 

@@ -1,7 +1,7 @@
 import { createContainer } from './app/container';
 import { readConfig } from './config';
 import { createCanastaServer } from './http/server';
-import { primaryLanAddress, urlFor } from './network';
+import { isReachableFromOtherDevices, primaryLanAddress, urlFor } from './network';
 
 /**
  * The Canasta tournament server.
@@ -24,6 +24,11 @@ async function main(): Promise<void> {
   const container = createContainer({
     databasePath: config.databasePath,
     basePath: config.basePath,
+    origin: {
+      publicUrl: config.publicUrl,
+      host: config.host,
+      port: config.port,
+    },
   });
   line(`  ✓ Database geopend    ${config.databasePath}`);
 
@@ -69,6 +74,20 @@ async function main(): Promise<void> {
     line('Netwerk:');
     line('  Geen netwerkadres gevonden. Dit apparaat lijkt niet met een');
     line('  netwerk verbonden, dus tafels kunnen er nu niet bij.');
+  }
+
+  // The address every QR code will carry. Printed because it is the one thing
+  // that has to be right for a phone to reach this server, and because getting
+  // it wrong is silent otherwise. No token is ever printed.
+  const origin = container.origin();
+  line();
+  line('Tafels koppelen via:');
+  line(`  ${origin}`);
+
+  if (!isReachableFromOtherDevices(origin)) {
+    line();
+    line('Let op: dit adres werkt alleen op deze laptop, dus een QR-code is nu');
+    line('niet te scannen vanaf een telefoon.');
   }
 
   if (config.host === '127.0.0.1' || config.host === 'localhost') {

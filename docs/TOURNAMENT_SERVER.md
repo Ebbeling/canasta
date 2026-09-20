@@ -55,6 +55,16 @@ Stoppen met Ctrl+C.
 Het IP-adres is niet vastgelegd: het wordt bij elke start opgezocht. Verhuis je naar een ander
 netwerk, dan verandert het mee.
 
+Onderaan toont de server ook:
+
+```text
+Tafels koppelen via:
+  http://192.168.1.42:8787
+```
+
+Dat is het adres dat **in elke QR-code** komt te staan. Staat daar `localhost`, dan kan geen
+enkele telefoon de code scannen — zie [Als het niet werkt](#8-als-het-niet-werkt).
+
 ### Opties
 
 | Optie | Betekenis |
@@ -64,6 +74,7 @@ netwerk, dan verandert het mee.
 | `-Rebuild` | App en server opnieuw bouwen, ook als er al een build is. |
 | `-NoBrowser` | Niet automatisch een browser openen. |
 | `-Database pad` | Een ander databasebestand gebruiken. |
+| `-PublicUrl https://…` | Het adres waarop de server van buitenaf te bereiken is, als dat niet het LAN-adres is — achter een reverse proxy of op een eigen hostnaam. QR-codes gebruiken het. |
 | `-Dev` | De oude ontwikkelserver (Vite, hot reload). Géén toernooiserver, géén tafels. |
 
 ### Zonder PowerShell
@@ -85,6 +96,10 @@ npm run server:start   # starten op poort 8787
    de ronde nodig heeft.
 4. Ga naar **Tafels** in het menu van het toernooi.
 5. Maak per tafel een code aan en toon de QR.
+
+Onder de QR-code staat dezelfde link ook als tekst, met een knop **Link kopiëren** — handig om hem
+door te sturen naar een tafel zonder camera. De QR-code en die link zijn altijd dezelfde URL: de
+server bepaalt hem, niet de browser waarin je kijkt.
 
 De pagina **Tafels** laat per tafel zien of er een apparaat aan hangt:
 
@@ -138,9 +153,12 @@ precies waar deze melding voor is.
 Weigert de server iets definitief (bijvoorbeeld omdat de organisator de ronde inmiddels heeft
 afgesloten), dan staat dat er met de reden bij en kun je de invoer weggooien.
 
-> **Let op:** wordt het tafelscherm ververst terwijl er géén verbinding is, dan laadt de app uit de
-> browsercache en toont hij de laatst bekende stand van die tafel. Werkt dat niet, dan is de
-> pagina nog nooit op dat apparaat geopend geweest — scan de QR opnieuw zodra er verbinding is.
+> **Let op — verversen terwijl er geen verbinding is werkt niet.**
+> Het tafelscherm draait op een gewoon `http://`-adres in het lokale netwerk. Browsers geven zo'n
+> adres geen service worker (dat mag alleen op `https` en op `localhost`), dus er is geen
+> offline-cache van de pagina zelf. Zolang het scherm openstaat is er niets aan de hand: wat je
+> invult blijft op het apparaat staan en gaat alsnog weg zodra de server er weer is. Ververs of
+> sluit het tafelscherm dus niet tijdens een storing.
 
 ---
 
@@ -199,6 +217,7 @@ Zet de server niet open op het internet. Hij is bedoeld voor het netwerk van de 
 | Idem, op een gastnetwerk | Veel gast- en hotelnetwerken schermen apparaten van elkaar af (*client isolation*). Gebruik een eigen netwerk of een telefoon-hotspot. |
 | "Poort is al in gebruik" | Er draait al een server. Stop die, of `.\serve.ps1 -Port 9000`. |
 | "Deze koppeling werkt niet" op een tafel | De code is ingetrokken of vervangen. Laat de organisator een nieuwe QR tonen. |
+| De QR-link begint met `localhost` of `127.0.0.1` | De laptop zit niet op een netwerk, of de server is met `-LocalOnly` gestart. Zo'n link werkt alleen op de laptop zelf. Het scherm **Tafels** zegt dit er ook bij. |
 | "Versies komen niet overeen" | De laptop en het tafelapparaat draaien verschillende versies van de app. Ververs de pagina op de tafel. |
 
 Het script verandert **niets** aan je firewall en vraagt geen beheerdersrechten. Dat is met opzet:

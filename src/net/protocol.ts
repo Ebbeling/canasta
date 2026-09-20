@@ -308,3 +308,14 @@ export interface TablesResponse {
 export function protocolIsCompatible(serverVersion: number): boolean {
   return serverVersion === TOURNAMENT_PROTOCOL_VERSION;
 }
+
+/**
+ * Whether a link is one another device in the room could actually open.
+ *
+ * Shared with the server so both sides mean the same thing by it: the server
+ * warns in the console at start-up, the organiser's screen warns next to the
+ * QR code, and neither has its own idea of what counts as unreachable.
+ */
+export function isReachableFromOtherDevices(url: string): boolean {
+  return !/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(url);
+}

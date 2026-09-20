@@ -20,6 +20,15 @@ export interface ServerConfig {
   webRoot: string;
   /** The sub-path the PWA is served under, matching its router basename. */
   basePath: string;
+  /**
+   * What the outside world sees, when that is not what this process binds.
+   *
+   * Set it behind a reverse proxy, a tunnel or a hostname — anything the
+   * server cannot discover by looking at its own network adapters. Every
+   * outward-facing link is built from it, so a QR code stays correct without
+   * one line of the UI changing.
+   */
+  publicUrl?: string;
 }
 
 function readNumber(value: string | undefined, fallback: number): number {
@@ -58,5 +67,6 @@ export function readConfig(
     ),
     webRoot: resolve(cwd, flag(argv, 'web-root') ?? env.CANASTA_WEB_ROOT ?? 'dist'),
     basePath: basePath.endsWith('/') ? basePath : `${basePath}/`,
+    publicUrl: flag(argv, 'public-url') ?? env.CANASTA_PUBLIC_URL ?? undefined,
   };
 }

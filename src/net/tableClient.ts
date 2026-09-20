@@ -1,3 +1,4 @@
+import { newId as randomId } from '@/domain/ids';
 import type { TeamRoundInput } from '@/domain/round';
 import { API_PREFIX, type TableState } from './protocol';
 import { OfflineError, ServerError, type ServerLink } from './serverLink';
@@ -105,7 +106,7 @@ export function createTableClient({
   link,
   token,
   storage = browserQueueStorage,
-  newId = () => crypto.randomUUID(),
+  newId = randomId,
 }: TableClientOptions): TableClient {
   // Keyed by token so two tables sharing a device — a tablet that was moved —
   // never inherit each other's queue.

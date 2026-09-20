@@ -242,3 +242,60 @@ describe('the table screens offer nothing an organiser does', () => {
     expect(offenders).toEqual([]);
   });
 });
+
+/**
+ * Outward-facing links are built in one place.
+ *
+ * The first version of the multi-device feature built a table's join link from
+ * the `Host` header of the request that asked for it — so the organiser, who
+ * browses to `localhost`, was handed QR codes pointing at `localhost`. The cure
+ * is structural: the server owns the origin, and nothing downstream is allowed
+ * to have a second opinion about it.
+ */
+describe('nothing downstream invents a server address', () => {
+  const drawsQr = ['src/ui/tournament/QrCode.tsx'];
+  const tableScreens = [
+    ...sourceFiles('src/ui/table'),
+    'src/routes/TournamentTablesRoute.tsx',
+    'src/routes/TableRoute.tsx',
+    'src/routes/TableRoundRoute.tsx',
+  ];
+
+  it.each([
+    ['the browser address', /window\.location|location\.(origin|hostname|host|port)/],
+    ['a hardcoded host', /localhost|127\.0\.0\.1/],
+    ['a scheme of its own', /['"`]https?:\/\//],
+  ])('the QR component never mentions %s', (_name, pattern) => {
+    const offenders = drawsQr.filter((file) => pattern.test(readFileSync(file, 'utf8')));
+    expect(offenders).toEqual([]);
+  });
+
+  it('no screen glues an origin onto a table path', () => {
+    // In-app navigation to `/table/:token` is fine — those are router paths
+    // with no host in them. What must never appear is a *whole* URL built
+    // outside the server: that is the bug coming back.
+    const offenders = tableScreens.filter((file) =>
+      /:\/\/[^'"\n]*\/table\//.test(readFileSync(file, 'utf8')),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it('reads the join URL from the server rather than composing one', () => {
+    const source = readFileSync('src/routes/TournamentTablesRoute.tsx', 'utf8');
+
+    // The one legitimate source is `joinUrl`, which the server puts in the
+    // tables response and which the QR code and the copy button share.
+    expect(source).toContain('entry.joinUrl');
+    expect(/tableJoinUrl|resolveOrigin/.test(source)).toBe(false);
+  });
+
+  it('keeps the origin out of the transport layer', () => {
+    // `server/src/http` parses requests and writes answers. Deciding what a
+    // link points at belongs to `server/src/network.ts` and nowhere else, so
+    // the check is on imports rather than on prose in a comment.
+    const offenders = sourceFiles('server/src/http').filter((file) =>
+      /import[^;]*\bfrom '[^']*network'/.test(readFileSync(file, 'utf8')),
+    );
+    expect(offenders).toEqual([]);
+  });
+});
