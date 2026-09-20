@@ -254,9 +254,11 @@ export function TournamentRoute() {
 
               {data.status.kind !== 'done' ? (
                 <div className="flex gap-2">
-                  <Button size="md" block onClick={() => setConfirmEnd('day')}>
-                    Speeldag beëindigen
-                  </Button>
+                  {data.canEndDay ? (
+                    <Button size="md" block onClick={() => setConfirmEnd('day')}>
+                      Speeldag beëindigen
+                    </Button>
+                  ) : null}
                   <Button variant="contrast" size="md" block onClick={() => setConfirmEnd('tournament')}>
                     Toernooi afronden
                   </Button>
@@ -284,7 +286,7 @@ export function TournamentRoute() {
           </div>
 
           {data.status.kind === 'done' ? (
-            <Card tone="accent" className="px-5 py-4 lg:order-0 lg:col-span-2">
+            <Card tone="accent" className="order-first px-5 py-4 lg:order-0 lg:col-span-2">
               <SectionLabel as="h2" tone="inherit">
                 Afgerond
               </SectionLabel>

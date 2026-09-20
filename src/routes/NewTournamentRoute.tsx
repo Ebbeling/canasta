@@ -756,16 +756,32 @@ export function NewTournamentRoute() {
                 <SectionLabel className="block pb-1 pt-2.5">{draft.name}</SectionLabel>
                 <dl className="grid grid-cols-[repeat(auto-fit,minmax(5.5rem,1fr))] gap-2 py-3">
                   {[
-                    { value: String(participants.length), label: draft.entryKind === 'team' ? 'teams' : 'spelers' },
-                    { value: String(tableCount), label: 'tafels' },
+                    {
+                      value: String(participants.length),
+                      label:
+                        draft.entryKind === 'team'
+                          ? participants.length === 1
+                            ? 'team'
+                            : 'teams'
+                          : participants.length === 1
+                            ? 'speler'
+                            : 'spelers',
+                    },
+                    { value: String(tableCount), label: tableCount === 1 ? 'tafel' : 'tafels' },
                     {
                       value:
                         draft.mode === 'fixed'
                           ? String(draft.plannedDays * draft.plannedRoundsPerDay)
                           : '—',
-                      label: 'rondes',
+                      label:
+                        draft.mode === 'fixed' && draft.plannedDays * draft.plannedRoundsPerDay === 1
+                          ? 'ronde'
+                          : 'rondes',
                     },
-                    { value: draft.mode === 'fixed' ? String(draft.plannedDays) : '—', label: 'dagen' },
+                    {
+                      value: draft.mode === 'fixed' ? String(draft.plannedDays) : '—',
+                      label: draft.mode === 'fixed' && draft.plannedDays === 1 ? 'dag' : 'dagen',
+                    },
                   ].map((fact) => (
                     <div key={fact.label} className="rounded-control bg-panel2 px-2 py-2.5 text-center">
                       <dd className="font-display text-xl font-semibold tabular">{fact.value}</dd>

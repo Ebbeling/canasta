@@ -251,6 +251,8 @@ export interface TournamentDashboardVM {
   /** Anything the organiser should look at, already worded. */
   attention: string[];
   nextAction: { kind: NextActionKind; label: string; hint: string; enabled: boolean };
+  /** False between two speeldagen: there is no day left to end. */
+  canEndDay: boolean;
   /** The first three of the standings, for the dashboard card. */
   top: StandingRowVM[];
   participantCount: number;
@@ -424,6 +426,7 @@ export function buildDashboard(loaded: LoadedTournament): TournamentDashboardVM 
     progress: planned ? { completed, total: planned } : undefined,
     round: roundVM,
     attention,
+    canEndDay: tournament.days.some((entry) => entry.status === 'active'),
     nextAction,
     top: standingRows(tournament, standings).slice(0, 3),
     participantCount: tournament.participants.length,
@@ -546,6 +549,8 @@ export interface TournamentParticipantVM {
 export interface TournamentParticipantsVM {
   title: string;
   subtitle: string;
+  /** What being a participant means here — it differs per participant kind. */
+  note: { lead: string; body: string };
   rows: TournamentParticipantVM[];
 }
 
@@ -561,6 +566,15 @@ export function buildParticipants(loaded: LoadedTournament): TournamentParticipa
       `${tournament.participants.length} ${teams ? 'teams' : 'spelers'}`,
       teams ? 'vaste teams' : 'individueel',
     ].join(' · '),
+    note: teams
+      ? {
+          lead: 'Vaste teams',
+          body: 'Een team blijft het hele toernooi bij elkaar. Wie stopt, blijft in de stand staan met de partijen die al gespeeld zijn.',
+        }
+      : {
+          lead: 'Losse spelers',
+          body: 'Elke ronde worden de spelers opnieuw over de tafels verdeeld. Wie stopt, blijft in de stand staan met de partijen die al gespeeld zijn.',
+        },
     rows: tournament.participants.map((participant) => {
       const row = byId.get(participant.id);
       return {

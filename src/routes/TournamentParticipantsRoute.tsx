@@ -53,9 +53,8 @@ export function TournamentParticipantsRoute() {
             </ErrorPanel>
           ) : null}
 
-          <Note lead="Vaste deelnemers" tone="info">
-            Een team blijft het hele toernooi bij elkaar. Wie stopt, blijft in de stand staan met
-            de partijen die al gespeeld zijn.
+          <Note lead={data.note.lead} tone="info">
+            {data.note.body}
           </Note>
 
           <Block as="ul" className="overflow-hidden">

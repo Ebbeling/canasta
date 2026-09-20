@@ -12,6 +12,7 @@ import { historyOf } from '@/tournament/history';
 import type { ProposedMatch } from '@/tournament/pairing';
 import {
   buildDashboard,
+  buildParticipants,
   buildRound,
   buildStandingsView,
 } from '@/application/viewmodels/tournamentView';
@@ -212,6 +213,20 @@ describe('creating a tournament', () => {
 
     expect(outcome.tournament.participants).toHaveLength(4);
     expect(outcome.tournament.participants[0]!.memberNames).toEqual(['Anna', 'Bram']);
+
+    // The deelnemers screen has to say what kind of participant this is; a
+    // permanent team stays together, loose players do not.
+    const view = buildParticipants(await loaded(outcome.tournament));
+    expect(view.note.lead).toBe('Vaste teams');
+    expect(view.note.body).toContain('blijft het hele toernooi bij elkaar');
+  });
+
+  it('tells loose players they are redealt every round', async () => {
+    const tournament = await createTournament();
+    const view = buildParticipants(await loaded(tournament));
+
+    expect(view.note.lead).toBe('Losse spelers');
+    expect(view.note.body).toContain('opnieuw over de tafels verdeeld');
   });
 });
 
@@ -536,6 +551,24 @@ describe('what the dashboard says', () => {
     expect(view.round?.matches[0]!.actionLabel).toBe('Open partij');
     expect(view.round?.matches[1]!.actionLabel).toBe('Partij starten');
     expect(view.attention.some((line) => line.includes('nog niet gestart'))).toBe(true);
+  });
+
+  it('only offers to end a speeldag while one is running', async () => {
+    const tournament = await createTournament();
+
+    // Nothing has started yet, so there is no day to end.
+    expect(buildDashboard(await loaded(tournament)).canEndDay).toBe(false);
+
+    const running = await playRound(tournament);
+    expect(buildDashboard(await loaded(running)).canEndDay).toBe(true);
+
+    const settled = await finishRound(running, (_table, side) => (side === 0 ? 900 : 300));
+    const closed = await services.tournaments.completeRound(settled.id, settled.rounds.at(-1)!.id);
+    if (!closed.ok) throw new Error('ronde niet afgesloten');
+
+    const ended = await services.tournaments.endDay(closed.tournament.id);
+    if (!ended.ok) throw new Error('speeldag niet beëindigd');
+    expect(buildDashboard(await loaded(ended.tournament)).canEndDay).toBe(false);
   });
 
   it('points at a table whose game has disappeared', async () => {
