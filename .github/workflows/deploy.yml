@@ -36,9 +36,17 @@ jobs:
       # `npm ci` en niet `npm install`: de lockfile is leidend in CI.
       - run: npm ci
 
-      # Typecheck, lint en de volledige testsuite. Faalt dit, dan draait de
-      # deploy-job niet — die hangt aan `needs: build`.
-      - run: npm run check
+      # Apart in plaats van `npm run check`, zodat de naam van de stap zegt wat
+      # er stuk is zonder de logs open te hoeven klappen. Faalt er een, dan
+      # draait de deploy-job niet — die hangt aan `needs: build`.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests
+        run: npm run test:run
 
       - run: npm run build
 

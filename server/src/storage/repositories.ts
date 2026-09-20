@@ -78,26 +78,45 @@ export function createSqliteRepositories(
 
   /* ---------------------------------------------------------- transaction */
 
-  // `node:sqlite` has no nested transactions, and the server runs one request
-  // at a time through this layer, so a depth counter is enough to let an inner
-  // repository call join the outer transaction instead of starting its own.
+  /*
+   * Transactions, one at a time.
+   *
+   * `node:sqlite` has no nested transactions, and `fn` is asynchronous: between
+   * two of its awaits the event loop is free to start another request, which is
+   * exactly what happens when two tables hand in a result at the same moment.
+   * Without the queue below, the second request would either open a transaction
+   * inside the first — SQLite refuses — or silently join it and be committed by
+   * somebody else's COMMIT.
+   *
+   * So writes are serialised on a promise chain. The depth counter stays, for
+   * the other case it was written for: a repository method that opens its own
+   * transaction while already inside one.
+   */
   let depth = 0;
+  let queue: Promise<unknown> = Promise.resolve();
 
   async function transaction<T>(_stores: readonly StoreName[], fn: () => Promise<T>): Promise<T> {
     if (depth > 0) return fn();
 
-    depth += 1;
-    db.exec('BEGIN IMMEDIATE');
-    try {
-      const value = await fn();
-      db.exec('COMMIT');
-      return value;
-    } catch (error) {
-      db.exec('ROLLBACK');
-      throw error;
-    } finally {
-      depth -= 1;
-    }
+    const run = queue.then(async () => {
+      depth += 1;
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        const value = await fn();
+        db.exec('COMMIT');
+        return value;
+      } catch (error) {
+        db.exec('ROLLBACK');
+        throw error;
+      } finally {
+        depth -= 1;
+      }
+    });
+
+    // The chain must not break on a failed transaction, or every later write
+    // would be rejected by somebody else's error.
+    queue = run.catch(() => undefined);
+    return run;
   }
 
   return {

@@ -93,6 +93,17 @@ export default defineConfig({
     // Tests die er wel een nodig hebben zetten bovenaan `// @vitest-environment jsdom`.
     environment: 'node',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'server/**/*.test.ts'],
+    /*
+     * Ruimer dan de standaard vijf seconden.
+     *
+     * De servertests starten een echte HTTP-server met een echte database, en
+     * die draaien parallel aan de zware jsdom-tests. Op een machine met twee
+     * kernen — een CI-runner — haalt een jsdom-test die normaal een halve
+     * seconde kost daardoor de standaardlimiet niet. Twintig seconden is nog
+     * steeds kort genoeg om een test die écht hangt te laten falen.
+     */
+    testTimeout: 20_000,
+    hookTimeout: 20_000,
     setupFiles: ['./src/test/setup.ts'],
     coverage: {
       provider: 'v8',

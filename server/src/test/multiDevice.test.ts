@@ -130,33 +130,48 @@ describe('three tables and an organiser', () => {
     const reader = response.body!.getReader();
     const decoder = new TextDecoder();
 
-    const pump = (async () => {
+    /*
+     * Reads the stream until the event we are waiting for turns up.
+     *
+     * Frames arrive in whatever chunks the socket feels like, so the tail of a
+     * partial frame is kept rather than thrown away — and the wait is for the
+     * event itself, not for a count or a fixed delay, so a slow machine makes
+     * this slower rather than wrong.
+     */
+    const waitFor = async (kind: string) => {
       let buffer = '';
-      while (received.length < 2) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
 
-        for (const block of buffer.split('\n\n')) {
+      while (!received.some((event) => event.kind === kind)) {
+        const { value, done } = await reader.read();
+        if (done) return false;
+
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split('\n\n');
+        buffer = blocks.pop() ?? '';
+
+        for (const block of blocks) {
           const line = block.split('\n').find((entry) => entry.startsWith('data: '));
           if (line) received.push(JSON.parse(line.slice(6)) as ServerEvent);
         }
-        buffer = '';
       }
-    })();
 
-    // Something a table does must reach the organiser's stream.
+      return true;
+    };
+
+    // The stream says hello before anything has happened.
+    expect(await waitFor('hello')).toBe(true);
+
+    // And then something a table does must reach the organiser's stream.
     const opened = await api.call<TableState>('GET', `/api/table/session/${tokens[0]}/state`);
     await api.call('POST', `/api/table/session/${tokens[0]}/match/start`, {
       matchId: opened.body.match!.id,
       idempotencyKey: idempotencyKey('start'),
     });
 
-    await Promise.race([pump, new Promise((resolve) => setTimeout(resolve, 3000))]);
+    expect(await waitFor('tournament')).toBe(true);
     controller.abort();
 
     expect(received[0]?.kind).toBe('hello');
-    expect(received.some((event) => event.kind === 'tournament')).toBe(true);
   });
 });
 
@@ -351,12 +366,12 @@ describe('conflicts and retries', () => {
     expect(after.body.game!.rounds).toHaveLength(1);
   });
 
-  it('lets two tables hand in at the same moment without rejecting each other', async () => {
+  it('lets every table hand in at the same moment without rejecting each other', async () => {
     const api = await server();
     const { tokens } = await room(api);
 
     const prepared = await Promise.all(
-      tokens.slice(0, 2).map(async (token) => {
+      tokens.map(async (token) => {
         const opened = await api.call<TableState>('GET', `/api/table/session/${token}/state`);
         const matchId = opened.body.match!.id;
         const started = await api.call<TableState>(
@@ -380,8 +395,10 @@ describe('conflicts and retries', () => {
       }),
     );
 
-    // The revision that matters is the match's own, so neither is stale.
-    expect(results.map((entry) => entry.status)).toEqual([200, 200]);
+    // Two things at once: the revision that matters is the match's own, so
+    // nobody is stale; and the writes are serialised underneath, so SQLite is
+    // never asked to open a transaction inside another one.
+    expect(results.map((entry) => entry.status)).toEqual([200, 200, 200]);
     expect(results.every((entry) => entry.body.game!.rounds.length === 1)).toBe(true);
   });
 });
