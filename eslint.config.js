@@ -43,7 +43,7 @@ export default tseslint.config(
 
   // --- Laaggrens 1: de pure kern kent geen framework, geen opslag, geen browser.
   {
-    files: ['src/domain/**', 'src/rules/**', 'src/scoring/**'],
+    files: ['src/domain/**', 'src/rules/**', 'src/scoring/**', 'src/tournament/**'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -138,6 +138,7 @@ export default tseslint.config(
             '@/rules/validation/*',
             '@/rules/initialMeld/*',
             '@/rules/expression/*',
+            '@/tournament/*',
           ],
         },
       ],

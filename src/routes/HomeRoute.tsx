@@ -1,7 +1,7 @@
 import { Link } from 'react-router';
 import type { GameSummary } from '@/application/ports';
 import { useGameList, useLastActiveGame, useScoreboard } from '@/hooks/useGameData';
-import { ChevronRight, Plus, Sliders } from '@/ui/common/icons';
+import { ChevronRight, Plus, Sliders, TrophyIcon } from '@/ui/common/icons';
 import { Suit } from '@/ui/common/Suit';
 import {
   Block,
@@ -14,6 +14,8 @@ import {
   SectionLabel,
 } from '@/ui/common/primitives';
 import { PageBody } from '@/ui/app/Page';
+import { useRunningTournament } from '@/hooks/useTournamentData';
+import { StatusPill } from '@/ui/tournament/pieces';
 import { GameSummaryRow } from './GameSummaryRow';
 
 /** The wordmark, with the four suits as the app's only decoration. */
@@ -102,6 +104,7 @@ function CardFan() {
 export function HomeRoute() {
   const resume = useLastActiveGame();
   const recent = useGameList({ limit: 5 });
+  const tournament = useRunningTournament();
 
   const isEmpty = recent.status === 'ready' && recent.data.length === 0;
 
@@ -122,6 +125,27 @@ export function HomeRoute() {
             Nieuwe partij
           </LinkButton>
         </div>
+      ) : null}
+
+      {/* A tournament is the level above a game, so a running one comes first:
+          it is the thing the evening is about. */}
+      {tournament.status === 'ready' ? (
+        <Link
+          to={`/tournaments/${tournament.data.id}`}
+          className="flex items-center gap-3 rounded-card border border-border bg-panel px-4.5 py-3.5 shadow-soft transition-colors hover:bg-panel2 lg:rounded-sheet"
+        >
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-tile bg-accent-soft text-accent">
+            <TrophyIcon size={22} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-body font-semibold">{tournament.data.name}</span>
+            <span className="block truncate text-caption text-muted">
+              {tournament.data.metaLine}
+            </span>
+          </span>
+          <StatusPill status={tournament.data.status} />
+          <ChevronRight className="shrink-0 text-muted" />
+        </Link>
       ) : null}
 
       {/*

@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { knowsTournaments, scoresAHand } from './tournamentBoundary';
 
 /**
  * A grep over the UI layer.
@@ -28,6 +29,9 @@ function sourceFiles(directory: string): string[] {
 }
 
 const files = UI_DIRECTORIES.flatMap(sourceFiles);
+
+/** The pure layers, which must stay free of the framework and of storage. */
+const PURE_DIRECTORIES = ['src/domain', 'src/rules', 'src/scoring', 'src/tournament'];
 
 /** Canasta concepts the UI must never name, and engine calls it must not make. */
 const FORBIDDEN: { pattern: RegExp; why: string }[] = [
@@ -76,6 +80,42 @@ describe('the UI layer contains no Canasta rules', () => {
       );
     });
 
+    expect(offenders).toEqual([]);
+  });
+});
+
+/**
+ * The pairing engine and the standings projection are pure, the same way the
+ * score engine is. ESLint enforces the imports; this states the intent in a
+ * form that survives a config change, and adds the two rules a linter cannot
+ * express: no tournament knowledge in the score engine, and no scoring in the
+ * tournament layer.
+ */
+describe('the tournament layer is pure', () => {
+  const pure = PURE_DIRECTORIES.flatMap(sourceFiles);
+
+  it.each([
+    ['react', /from '(react|react-[^']*)'/],
+    ['dexie', /from 'dexie/],
+    ['storage', new RegExp(String.raw`from '@/storage`)],
+    ['the UI', new RegExp(String.raw`from '@/(ui|routes|hooks|app)/`)],
+    ['the application layer', new RegExp(String.raw`from '@/application/`)],
+  ])('never imports %s', (_name, pattern) => {
+    const offenders = pure.filter((file) => pattern.test(readFileSync(file, 'utf8')));
+    expect(offenders).toEqual([]);
+  });
+
+  it('keeps the score engine free of tournaments', () => {
+    const offenders = sourceFiles('src/scoring').filter((file) =>
+      knowsTournaments(readFileSync(file, 'utf8')),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it('keeps the tournament layer out of the scoring of a hand', () => {
+    const offenders = sourceFiles('src/tournament').filter((file) =>
+      scoresAHand(readFileSync(file, 'utf8')),
+    );
     expect(offenders).toEqual([]);
   });
 });

@@ -5,6 +5,7 @@ import { createGameRepository } from './gameRepository';
 import { createMetaRepository } from './metaRepository';
 import { createPresetRepository } from './presetRepository';
 import { createRoundRepository } from './roundRepository';
+import { createTournamentRepository } from './tournamentRepository';
 import { systemClock, type Clock } from './time';
 
 export interface RepositoryOptions {
@@ -29,6 +30,7 @@ export function createRepositories(
     presets: db.presets,
     drafts: db.drafts,
     meta: db.meta,
+    tournaments: db.tournaments,
   } as const;
 
   return {
@@ -37,6 +39,7 @@ export function createRepositories(
     presets: createPresetRepository(db),
     drafts: createDraftRepository(db, clock),
     meta: createMetaRepository(db),
+    tournaments: createTournamentRepository(db),
 
     transaction<T>(stores: readonly StoreName[], fn: () => Promise<T>): Promise<T> {
       const involved = stores.map((store) => tables[store]);
@@ -63,4 +66,11 @@ export async function recordSchemaVersion(repositories: Repositories): Promise<v
 
 export { CanastaDatabase, createDatabase, getDatabase, DB_NAME, DB_VERSION } from './db';
 export { now, systemClock, fixedClock, type Clock } from './time';
-export type { DraftRecord, GameRecord, MetaRecord, PresetRecord, RoundRecord } from './records';
+export type {
+  DraftRecord,
+  GameRecord,
+  MetaRecord,
+  PresetRecord,
+  RoundRecord,
+  TournamentRecord,
+} from './records';

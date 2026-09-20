@@ -1,6 +1,19 @@
 import { NavLink, useParams } from 'react-router';
 import { useScoreboard } from '@/hooks/useGameData';
-import { BoardIcon, BookIcon, Check, ChevronLeft, ClockIcon, Plus, Sliders } from '@/ui/common/icons';
+import { useTournamentDashboard } from '@/hooks/useTournamentData';
+import {
+  BoardIcon,
+  BookIcon,
+  Check,
+  ChevronLeft,
+  ClockIcon,
+  PeopleIcon,
+  Plus,
+  Sliders,
+  StandingsIcon,
+  TableIcon,
+  TrophyIcon,
+} from '@/ui/common/icons';
 import { useRailSteps, type RailStep } from '@/ui/app/railSteps';
 import { Suit } from '@/ui/common/Suit';
 import { SectionLabel } from '@/ui/common/primitives';
@@ -82,6 +95,70 @@ function WizardContext({ steps }: { steps: RailStep[] }) {
   );
 }
 
+/**
+ * Which tournament the rail is standing in.
+ *
+ * The same idea as the game context: what you are inside, how far along it is,
+ * and the four places you can go from here. A tournament is the level above a
+ * game, so this replaces the game's own context while one is open.
+ */
+function TournamentContext({ tournamentId }: { tournamentId: string }) {
+  const dashboard = useTournamentDashboard(tournamentId);
+
+  return (
+    <>
+      <NavLink to="/tournaments" className={`${RAIL_ITEM} text-muted hover:text-ink`}>
+        <ChevronLeft size={18} />
+        <span className="max-lg:sr-only">Alle toernooien</span>
+      </NavLink>
+
+      {dashboard.status === 'ready' ? (
+        <div className="rounded-block border border-border bg-surface px-4 py-3.5 max-lg:hidden">
+          <SectionLabel as="div">Dit toernooi</SectionLabel>
+          <p className="mt-2 truncate text-body font-semibold leading-snug">
+            {dashboard.data.name}
+          </p>
+          <p className="mt-1.5 text-caption text-muted">{dashboard.data.contextLine}</p>
+        </div>
+      ) : null}
+
+      <nav aria-label="In dit toernooi" className="flex flex-col gap-1">
+        {[
+          { to: `/tournaments/${tournamentId}`, label: 'Overzicht', Icon: TableIcon, end: true },
+          {
+            to: `/tournaments/${tournamentId}/rounds`,
+            label: 'Rondes',
+            Icon: ClockIcon,
+            end: false,
+          },
+          {
+            to: `/tournaments/${tournamentId}/standings`,
+            label: 'Stand',
+            Icon: StandingsIcon,
+            end: false,
+          },
+          {
+            to: `/tournaments/${tournamentId}/participants`,
+            label: 'Deelnemers',
+            Icon: PeopleIcon,
+            end: false,
+          },
+        ].map(({ to, label, Icon, end }) => (
+          <NavLink key={to} to={to} end={end} className={({ isActive }) => railClass(isActive)}>
+            {({ isActive }) => (
+              <>
+                <Marker active={isActive} />
+                <Icon size={20} className="lg:hidden" />
+                <span className="max-lg:sr-only">{label}</span>
+              </>
+            )}
+          </NavLink>
+        ))}
+      </nav>
+    </>
+  );
+}
+
 /** Which game the rail is standing in, if any. */
 function GameContext({ gameId }: { gameId: string }) {
   const board = useScoreboard(gameId);
@@ -135,7 +212,7 @@ function GameContext({ gameId }: { gameId: string }) {
 export function DesktopRail() {
   // The layout route sits above `games/:gameId`, and `useParams` reports the
   // whole matched hierarchy, so this is the id of the game being looked at.
-  const { gameId } = useParams();
+  const { gameId, tournamentId } = useParams();
   const steps = useRailSteps();
 
   return (
@@ -155,6 +232,8 @@ export function DesktopRail() {
 
       {gameId ? (
         <GameContext gameId={gameId} />
+      ) : tournamentId ? (
+        <TournamentContext tournamentId={tournamentId} />
       ) : steps ? (
         <WizardContext steps={steps} />
       ) : (
@@ -175,6 +254,15 @@ export function DesktopRail() {
                   <Marker active={isActive} />
                   <ClockIcon size={20} className="lg:hidden" />
                   <span className="max-lg:sr-only">Partijen</span>
+                </>
+              )}
+            </NavLink>
+            <NavLink to="/tournaments" className={({ isActive }) => railClass(isActive)}>
+              {({ isActive }) => (
+                <>
+                  <Marker active={isActive} />
+                  <TrophyIcon size={20} className="lg:hidden" />
+                  <span className="max-lg:sr-only">Toernooien</span>
                 </>
               )}
             </NavLink>

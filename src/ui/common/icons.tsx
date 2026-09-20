@@ -237,3 +237,95 @@ export function BookIcon({ size = 22, ...rest }: IconProps) {
     </svg>
   );
 }
+
+/** A trophy, for the tournaments destination. */
+export function TrophyIcon({ size = 22, ...rest }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 22 22"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+      {...rest}
+    >
+      <path d="M6 3h10v5a5 5 0 0 1-10 0z" />
+      <path d="M6 5H3.5v1.5A3.5 3.5 0 0 0 6.5 10M16 5h2.5v1.5a3.5 3.5 0 0 1-3 3.5" />
+      <path d="M11 13v3M8 19h6" />
+    </svg>
+  );
+}
+
+/** Four people around a table — one match in a tournament. */
+export function TableIcon({ size = 22, ...rest }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 22 22"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+      {...rest}
+    >
+      <circle cx="11" cy="11" r="4" />
+      <path d="M11 2v2M11 18v2M2 11h2M18 11h2" />
+    </svg>
+  );
+}
+
+/** A list of people, for the participants destination. */
+export function PeopleIcon({ size = 22, ...rest }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 22 22"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+      {...rest}
+    >
+      <circle cx="8" cy="7" r="3" />
+      <path d="M3 18a5 5 0 0 1 10 0" />
+      <path d="M15 5.5a3 3 0 0 1 0 5.8M16 18a5 5 0 0 0-2-4" />
+    </svg>
+  );
+}
+
+/** A podium, for the standings destination. */
+export function StandingsIcon({ size = 22, ...rest }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 22 22"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+      {...rest}
+    >
+      <path d="M3 19h16" />
+      <rect x="4" y="11" width="4.5" height="8" rx="1" />
+      <rect x="8.5" y="6" width="4.5" height="13" rx="1" />
+      <rect x="13" y="14" width="4.5" height="5" rx="1" />
+    </svg>
+  );
+}

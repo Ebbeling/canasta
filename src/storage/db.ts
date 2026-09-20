@@ -1,18 +1,36 @@
 import Dexie, { type Table } from 'dexie';
-import type { DraftRecord, GameRecord, MetaRecord, PresetRecord, RoundRecord } from './records';
+import type {
+  DraftRecord,
+  GameRecord,
+  MetaRecord,
+  PresetRecord,
+  RoundRecord,
+  TournamentRecord,
+} from './records';
 
 /**
  * The Canasta IndexedDB database.
  *
- * ## Current version: 1
+ * ## Current version: 2
  *
- * | Store     | Primary key | Indexes                                          |
- * |-----------|-------------|--------------------------------------------------|
- * | `games`   | `id`        | `status`, `createdAt`, `updatedAt`                 |
- * | `rounds`  | `id`        | `gameId`, `[gameId+roundNumber]`, `createdAt`      |
- * | `presets` | `id`        | `name`, `updatedAt`, `derivedFrom.ruleSetId`       |
- * | `drafts`  | `key`       | `kind`, `gameId`, `updatedAt`                      |
- * | `meta`    | `key`       | —                                                  |
+ * | Store         | Primary key | Indexes                                      |
+ * |---------------|-------------|----------------------------------------------|
+ * | `games`       | `id`        | `status`, `createdAt`, `updatedAt`             |
+ * | `rounds`      | `id`        | `gameId`, `[gameId+roundNumber]`, `createdAt`  |
+ * | `presets`     | `id`        | `name`, `updatedAt`, `derivedFrom.ruleSetId`   |
+ * | `drafts`      | `key`       | `kind`, `gameId`, `updatedAt`                  |
+ * | `meta`        | `key`       | —                                              |
+ * | `tournaments` | `id`        | `status`, `createdAt`, `updatedAt`             |
+ *
+ * Version 2 adds `tournaments` and nothing else. A new store needs no upgrade
+ * function: existing games, rounds and presets are untouched by it, and an
+ * install that has never seen a tournament simply has an empty store.
+ *
+ * A tournament is one document. Its days, rounds and tables are small, always
+ * read together and never queried on their own — the same reasoning that keeps
+ * players and teams inside a game. The games behind the tables stay in
+ * `games`, referenced by id, because those *are* queried on their own and are
+ * the hot write path during play.
  *
  * `rounds` is a store of its own rather than an array on the game: it is the hot
  * write path during a game, and rewriting the whole game document — snapshot and
@@ -37,7 +55,7 @@ import type { DraftRecord, GameRecord, MetaRecord, PresetRecord, RoundRecord } f
  * No speculative future versions are defined here.
  */
 export const DB_NAME = 'canasta';
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 export class CanastaDatabase extends Dexie {
   games!: Table<GameRecord, string>;
@@ -45,6 +63,7 @@ export class CanastaDatabase extends Dexie {
   presets!: Table<PresetRecord, string>;
   drafts!: Table<DraftRecord, string>;
   meta!: Table<MetaRecord, string>;
+  tournaments!: Table<TournamentRecord, string>;
 
   constructor(name: string = DB_NAME) {
     super(name);
@@ -55,6 +74,17 @@ export class CanastaDatabase extends Dexie {
       presets: 'id, name, updatedAt, derivedFrom.ruleSetId',
       drafts: 'key, kind, gameId, updatedAt',
       meta: 'key',
+    });
+
+    // Every version repeats the full definition: a store left out of a later
+    // version is deleted.
+    this.version(2).stores({
+      games: 'id, status, createdAt, updatedAt',
+      rounds: 'id, gameId, [gameId+roundNumber], createdAt',
+      presets: 'id, name, updatedAt, derivedFrom.ruleSetId',
+      drafts: 'key, kind, gameId, updatedAt',
+      meta: 'key',
+      tournaments: 'id, status, createdAt, updatedAt',
     });
   }
 }

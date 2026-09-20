@@ -2,6 +2,7 @@ import type { GameId, PresetId, RoundId, RuleSetId } from '@/domain/ids';
 import type { Game, GameStatus } from '@/domain/game';
 import type { Round } from '@/domain/round';
 import type { CustomRuleSetRecord } from '@/rules/schema/ruleSet';
+import type { Tournament, TournamentId, TournamentStatus } from '@/domain/tournament';
 
 /**
  * The persistence contract the application layer depends on.
@@ -96,6 +97,36 @@ export interface DraftRepository {
   listByGame(gameId: GameId): Promise<Draft[]>;
 }
 
+/** A tournament without its rounds — enough for the list (design 6a). */
+export interface TournamentSummary {
+  id: TournamentId;
+  name: string;
+  status: TournamentStatus;
+  createdAt: IsoTimestamp;
+  updatedAt: IsoTimestamp;
+  startedAt?: IsoTimestamp;
+  finishedAt?: IsoTimestamp;
+  participantCount: number;
+  roundCount: number;
+  dayCount: number;
+  ruleSetName: string;
+}
+
+export interface TournamentListFilter {
+  status?: TournamentStatus;
+  order?: 'newest' | 'oldest';
+  limit?: number;
+}
+
+export interface TournamentRepository {
+  create(tournament: Tournament): Promise<Tournament>;
+  get(id: TournamentId): Promise<Tournament | undefined>;
+  /** Replaces the stored tournament wholesale; fails when it does not exist. */
+  update(tournament: Tournament): Promise<Tournament>;
+  delete(id: TournamentId): Promise<void>;
+  list(filter?: TournamentListFilter): Promise<TournamentSummary[]>;
+}
+
 export type ThemePreference = 'system' | 'light' | 'dark';
 
 /** Application-wide metadata. Never used for scoring. */
@@ -103,6 +134,7 @@ export interface AppMeta {
   schemaVersion: number;
   appVersion: string;
   lastActiveGameId: GameId;
+  lastActiveTournamentId: TournamentId;
   lastUsedRuleSetId: RuleSetId;
   storagePersisted: boolean;
   theme: ThemePreference;
@@ -116,7 +148,7 @@ export interface MetaRepository {
 }
 
 /** Stores a transaction may touch. */
-export type StoreName = 'games' | 'rounds' | 'presets' | 'drafts' | 'meta';
+export type StoreName = 'games' | 'rounds' | 'presets' | 'drafts' | 'meta' | 'tournaments';
 
 /**
  * The single entry point the application layer uses for persistence, so no
@@ -128,6 +160,7 @@ export interface Repositories {
   presets: PresetRepository;
   drafts: DraftRepository;
   meta: MetaRepository;
+  tournaments: TournamentRepository;
   /**
    * Runs `fn` atomically across the named stores. Used wherever a round and its
    * game metadata must land together, so a crash cannot leave half a game.

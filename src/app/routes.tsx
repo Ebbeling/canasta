@@ -10,6 +10,14 @@ import { GameRulesRoute } from '@/routes/GameRulesRoute';
 import { SettingsRoute } from '@/routes/SettingsRoute';
 import { RuleSetsRoute } from '@/routes/RuleSetsRoute';
 import { RuleSetEditorRoute } from '@/routes/RuleSetEditorRoute';
+import { TournamentListRoute } from '@/routes/TournamentListRoute';
+import { NewTournamentRoute } from '@/routes/NewTournamentRoute';
+import { TournamentRoute } from '@/routes/TournamentRoute';
+import { TournamentRoundsRoute } from '@/routes/TournamentRoundsRoute';
+import { TournamentStandingsRoute } from '@/routes/TournamentStandingsRoute';
+import { TournamentParticipantsRoute } from '@/routes/TournamentParticipantsRoute';
+import { TournamentMatchRoute } from '@/routes/TournamentMatchRoute';
+import { TournamentSettingsRoute } from '@/routes/TournamentSettingsRoute';
 
 /**
  * A data router with no loaders.
@@ -39,6 +47,20 @@ export const routes = [
           { path: 'rounds/:roundId', element: <Navigate to="../edit" replace /> },
           { path: 'history', element: <HistoryRoute /> },
           { path: 'rules', element: <GameRulesRoute /> },
+        ],
+      },
+      { path: 'tournaments', element: <TournamentListRoute /> },
+      { path: 'tournaments/new', element: <NewTournamentRoute /> },
+      {
+        path: 'tournaments/:tournamentId',
+        errorElement: <RouteError />,
+        children: [
+          { index: true, element: <TournamentRoute /> },
+          { path: 'rounds', element: <TournamentRoundsRoute /> },
+          { path: 'standings', element: <TournamentStandingsRoute /> },
+          { path: 'participants', element: <TournamentParticipantsRoute /> },
+          { path: 'tables/:matchId', element: <TournamentMatchRoute /> },
+          { path: 'settings', element: <TournamentSettingsRoute /> },
         ],
       },
       { path: 'settings', element: <SettingsRoute /> },

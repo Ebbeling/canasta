@@ -4,6 +4,7 @@ import type { AppMeta, Clock, Repositories, ThemePreference } from '@/applicatio
 import { createGameService, type GameService } from './gameService';
 import { createRoundService, type RoundService } from './roundService';
 import { createRuleSetService, type RuleSetService } from './ruleSetService';
+import { createTournamentService, type TournamentService } from './tournamentService';
 import { createTransferService, type TransferService } from './transferService';
 
 export type { ThemePreference };
@@ -23,6 +24,7 @@ export interface Services {
   ruleSets: RuleSetService;
   settings: SettingsService;
   transfer: TransferService;
+  tournaments: TournamentService;
 }
 
 export interface ServiceDeps {
@@ -40,13 +42,15 @@ export interface ServiceDeps {
 export function createServices(deps: ServiceDeps): Services {
   const { repositories, clock, builtins } = deps;
   const ruleSets = createRuleSetService({ repositories, builtins });
+  const games = createGameService({ repositories, clock, resolver: ruleSets });
 
   return {
     ruleSets,
-    games: createGameService({ repositories, clock, resolver: ruleSets }),
+    games,
     rounds: createRoundService({ repositories, clock }),
     settings: createSettingsService(repositories),
     transfer: createTransferService({ repositories, clock }),
+    tournaments: createTournamentService({ repositories, clock, games }),
   };
 }
 
@@ -93,8 +97,9 @@ function createSettingsService(repositories: Repositories): SettingsService {
   };
 }
 
-export type { GameService, RoundService, RuleSetService, TransferService };
+export type { GameService, RoundService, RuleSetService, TournamentService, TransferService };
 export * from './gameService';
 export * from './roundService';
 export * from './ruleSetService';
+export * from './tournamentService';
 export * from './transferService';

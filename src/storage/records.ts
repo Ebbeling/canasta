@@ -4,6 +4,7 @@ import type { Game, GameResult, GameStatus, Player, Team } from '@/domain/game';
 import type { Round, RoundComputation, RoundInput, RoundStatus } from '@/domain/round';
 import type { ConfigOverride, CustomRuleSetRecord, RuleSet } from '@/rules/schema/ruleSet';
 import type { Draft, DraftKind, IsoTimestamp } from '@/application/ports';
+import type { Tournament } from '@/domain/tournament';
 
 /**
  * The shapes actually written to IndexedDB, plus the mapping to and from the
@@ -21,6 +22,7 @@ import type { Draft, DraftKind, IsoTimestamp } from '@/application/ports';
 /** Bumped when a record's *shape* changes, independently of the Dexie version. */
 export const GAME_RECORD_VERSION = 1;
 export const ROUND_RECORD_VERSION = 1;
+export const TOURNAMENT_RECORD_VERSION = 1;
 
 export interface GameRecord {
   id: GameId;
@@ -91,6 +93,17 @@ export interface RoundRecord {
    */
   computed?: RoundComputation;
 
+  recordVersion: number;
+}
+
+/**
+ * A tournament, stored whole.
+ *
+ * Near-identical to the domain type, like the others here. Days, rounds and
+ * tables travel inside it: they are small, always read together and never
+ * queried on their own. The games the tables point at stay in `games`.
+ */
+export interface TournamentRecord extends Tournament {
   recordVersion: number;
 }
 
@@ -190,6 +203,15 @@ export function fromRoundRecord(record: RoundRecord): Round {
     note: copy.note,
     computed: copy.computed,
   };
+}
+
+export function toTournamentRecord(tournament: Tournament): TournamentRecord {
+  return { ...structuredClone(tournament), recordVersion: TOURNAMENT_RECORD_VERSION };
+}
+
+export function fromTournamentRecord(record: TournamentRecord): Tournament {
+  const { recordVersion: _recordVersion, ...tournament } = structuredClone(record);
+  return tournament;
 }
 
 export function toDraftRecord(draft: Draft): DraftRecord {
