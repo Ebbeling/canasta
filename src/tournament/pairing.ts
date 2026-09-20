@@ -51,6 +51,15 @@ export interface PairingRequest {
   locked?: readonly LockedTable[];
   /** How hard to search. Higher is slower and rarely better. */
   effort?: number;
+  /**
+   * Which part of the search space to start in.
+   *
+   * The search is deterministic, so asking twice for the same round with the
+   * same history gives the same answer — which is what an organiser pressing
+   * "opnieuw indelen" does *not* want. Raising this walks a different set of
+   * orderings, so an equally good but different arrangement comes back.
+   */
+  nonce?: number;
 }
 
 export interface LockedTable {
@@ -553,13 +562,16 @@ export function proposePairing(request: PairingRequest): PairingOutcome {
   const { byes, playing } = chooseByes(free, plan.byeCount, history);
 
   const firstTable = lockedTables.length + 1;
-  const effort = request.effort ?? 24;
+  const effort = Math.max(request.effort ?? 24, 1);
+  const nonce = Math.max(Math.trunc(request.nonce ?? 0), 0);
+  const offset = nonce * effort;
 
   let best: ProposedMatch[] | undefined;
   let bestCost = Number.POSITIVE_INFINITY;
 
-  for (let attempt = 0; attempt < Math.max(effort, 1); attempt += 1) {
-    const ordering = attempt === 0 ? playing : reorder(playing, attempt);
+  for (let attempt = 0; attempt < effort; attempt += 1) {
+    const step = attempt + offset;
+    const ordering = step === 0 ? playing : reorder(playing, step);
     const filled = improve(greedy(ordering, plan.sizes, firstTable, context), context);
     const cost = totalCost(filled, context);
 

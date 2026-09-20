@@ -158,6 +158,8 @@ export function NewTournamentRoute() {
     [chosen?.id, chosen?.origin],
   );
   const [proposal, setProposal] = useState<PairingProposalVM | undefined>();
+  /** Counts the presses on "opnieuw indelen", so each one asks something new. */
+  const [reshuffles, setReshuffles] = useState(0);
   const [draft, setDraft] = useState<Draft>({
     name: '',
     mode: 'fixed',
@@ -269,15 +271,18 @@ export function NewTournamentRoute() {
    * The engine lives in the application layer; the wizard asks for a proposal
    * and renders the answer.
    */
-  function generatePairing() {
+  function generatePairing(attempt = 0) {
     if (!gameSettings) return;
 
-    const { participantIds, outcome } = services.tournaments.previewPairing({
-      name: draft.name,
-      settings,
-      gameSettings,
-      participants,
-    });
+    const { participantIds, outcome } = services.tournaments.previewPairing(
+      {
+        name: draft.name,
+        settings,
+        gameSettings,
+        participants,
+      },
+      attempt,
+    );
 
     if (!outcome.ok) {
       setProposal(undefined);
@@ -741,7 +746,14 @@ export function NewTournamentRoute() {
                       </Block>
                     ))}
                   </div>
-                  <Button size="md" onClick={() => generatePairing()}>
+                  <Button
+                    size="md"
+                    onClick={() => {
+                      const next = reshuffles + 1;
+                      setReshuffles(next);
+                      generatePairing(next);
+                    }}
+                  >
                     Opnieuw indelen
                   </Button>
                 </>

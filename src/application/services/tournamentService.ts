@@ -90,12 +90,15 @@ export interface TournamentService {
    * A first round for a tournament that has not been created yet, so the setup
    * wizard can show what the tables would look like.
    */
-  previewPairing(input: CreateTournamentInput): {
+  previewPairing(
+    input: CreateTournamentInput,
+    nonce?: number,
+  ): {
     participantIds: string[];
     outcome: ReturnType<typeof proposePairing>;
   };
   /** A proposal for the next round. Nothing is stored until it is confirmed. */
-  propose(id: TournamentId, locked?: ProposedMatch[]): Promise<
+  propose(id: TournamentId, locked?: ProposedMatch[], nonce?: number): Promise<
     { ok: true; proposal: PairingProposal } | { ok: false; issues: ValidationIssue[] }
   >;
   /** Checks an arrangement the organiser has rearranged by hand. */
@@ -407,7 +410,7 @@ export function createTournamentService(deps: TournamentServiceDeps): Tournament
       await save({ ...tournament, name: name.trim() || tournament.name });
     },
 
-    previewPairing(input) {
+    previewPairing(input, nonce) {
       const participantIds = input.participants.map((_participant, index) => `concept-${index}`);
       return {
         participantIds,
@@ -418,11 +421,12 @@ export function createTournamentService(deps: TournamentServiceDeps): Tournament
           oddParticipantMode: input.settings.oddParticipantMode,
           allowExtraAtTable: playsIndividually(input.gameSettings),
           history: emptyHistory(),
+          nonce,
         }),
       };
     },
 
-    async propose(id, locked) {
+    async propose(id, locked, nonce) {
       const tournament = await repositories.tournaments.get(id);
       if (!tournament) {
         return {
@@ -440,6 +444,7 @@ export function createTournamentService(deps: TournamentServiceDeps): Tournament
         oddParticipantMode: tournament.settings.oddParticipantMode,
         allowExtraAtTable: playsIndividually(tournament.gameSettings),
         history: historyOf(tournament),
+        nonce,
         locked: locked?.map((match) => ({
           tableNumber: match.tableNumber,
           participantIds: match.participantIds,

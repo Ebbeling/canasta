@@ -45,13 +45,18 @@ export function PairingReview({
 }) {
   const services = useServices();
   const [picked, setPicked] = useState<{ table: number; index: number } | undefined>();
+  /** Counts the presses on "opnieuw indelen", so each one asks something new. */
+  const [attempt, setAttempt] = useState(0);
 
   const confirm = useCommand(async () =>
     services.tournaments.confirmRound(tournamentId, toProposedMatches(proposal.tables)),
   );
   const regenerate = useCommand(async () => {
+    const next = attempt + 1;
+    setAttempt(next);
+
     const tournament = await services.tournaments.get(tournamentId);
-    const outcome = await services.tournaments.propose(tournamentId);
+    const outcome = await services.tournaments.propose(tournamentId, undefined, next);
     if (!outcome.ok || !tournament) return outcome;
     onProposalChange(buildPairingView({ participants: tournament.participants, teamsPerMatch: tournament.gameSettings.teamsPerMatch }, outcome.proposal));
     return outcome;

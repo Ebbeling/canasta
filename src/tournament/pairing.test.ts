@@ -384,3 +384,47 @@ describe('seating', () => {
     expect(pairKey('a', 'b')).toBe(pairKey('b', 'a'));
   });
 });
+
+describe('asking again', () => {
+  const request = (nonce?: number) => ({
+    participantIds: names(8),
+    participantsPerMatch: 4,
+    teamsPerMatch: 2,
+    oddParticipantMode: 'bye' as const,
+    allowExtraAtTable: false,
+    history: emptyHistory(),
+    nonce,
+  });
+
+  const seating = (nonce?: number) => {
+    const outcome = proposePairing(request(nonce));
+    if (!outcome.ok) throw new Error('geen indeling');
+    return outcome.proposal.matches.map((match) => match.participantIds.join(','));
+  };
+
+  it('answers the same when asked the same thing', () => {
+    expect(seating()).toEqual(seating());
+    expect(seating(0)).toEqual(seating());
+  });
+
+  it('offers a different arrangement when asked again', () => {
+    // The first round of a fresh tournament has no history to separate one
+    // arrangement from another, so without this the button would look broken.
+    expect(seating(1)).not.toEqual(seating(0));
+  });
+
+  it('keeps every rearrangement valid', () => {
+    const constraints = {
+      participantIds: names(8),
+      participantsPerMatch: 4,
+      allowExtraAtTable: false,
+    };
+
+    for (let nonce = 0; nonce < 5; nonce += 1) {
+      const outcome = proposePairing(request(nonce));
+      if (!outcome.ok) throw new Error('geen indeling');
+      expect(validatePairing(outcome.proposal.matches, constraints)).toEqual([]);
+      expect(outcome.proposal.repeatedPartners).toBe(0);
+    }
+  });
+});
