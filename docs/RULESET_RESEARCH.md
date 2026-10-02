@@ -467,8 +467,8 @@ drempels en zegt expliciet dat alle overige regels gelijk zijn. `Verified: ja`.
 
 # 4. Paul's regels (huisregels)
 
-Geen primaire bron. Dit is een huisvariant; er bestaat geen publicatie om hem tegen te houden,
-en dat is zelf een bevinding. De regelset voert daarom `source.name: "Huisregel"` **zonder URL
+Geen primaire bron. Dit is een huisvariant; er bestaat geen publicatie om hem tegen aan te
+houden, en dat is zelf een bevinding. De regelset voert daarom `source.name: "Huisregel"` **zonder URL
 en zonder raadpleegdatum**, en elke waarde die Paul niet beschreven heeft staat als
 `not-specified` in `provenance`, met Classic Canasta als herkomst.
 
@@ -476,27 +476,29 @@ en zonder raadpleegdatum**, en elke waarde die Paul niet beschreven heeft staat 
 
 | Rule | Value | Source | Verified | Effect | Notes |
 |---|---|---|---|---|---|
-| cardsPerPlayer | **26** | Huisregel | ja | advisory | Uitdrukkelijk 26, niet 2 × 13 |
+| teams | **ieder voor zich, geen teams** | Huisregel | ja | advisory | `teams.mode: individual`, `teamSize: 1`, capability `teams: false` |
+| players | **niet vastgelegd** | Huisregel | ja | advisory | Wordt per partij gekozen; de app staat 2 t/m 8 toe |
+| cardsPerPlayer | **26** | Huisregel | ja | advisory | Uitdrukkelijk 26, niet 2 × 13; 8 × 26 = 208 van de 324 kaarten |
 | standardDecks | **6** | Huisregel | ja | advisory | — |
-| initial meld | **rondenummer × 30** | Huisregel | ja | validation | Ronde 1 → 30, ronde 10 → 300; onbegrensd, en gelijk voor alle teams |
+| initial meld | **rondenummer × 30** | Huisregel | ja | validation | Ronde 1 → 30, ronde 10 → 300; onbegrensd, en gelijk voor elke speler |
 | rode drie in hand | **−300 per stuk** | Huisregel | ja | computed | Altijd negatief |
 | zwarte drie in hand | **−100 per stuk** | Huisregel | ja | computed | Altijd negatief |
 | uitgaan | **+100** | Huisregel | ja | computed | — |
 | verborgen uitgaan | **bestaat niet** | Huisregel | ja | computed | `goOut.concealedEnabled: false` + capability uit |
 | einde van de partij | **vast aantal rondes**, standaard 10 | Huisregel | ja | computed | Géén doelscore |
-| winnaar | **hoogste totaal over alle rondes** | Huisregel | ja | computed | Niet de laatste ronde, niet het aantal gewonnen rondes |
+| winnaar | **hoogste individuele totaal over alle rondes** | Huisregel | ja | computed | Niet de laatste ronde, niet het aantal gewonnen rondes |
 
 ## 4.2 Wat ingevuld moest worden om een geldige regelset te krijgen
 
-Een regelset is pas geldig als elk veld een waarde heeft. De waarden hieronder heeft Paul niet
-beschreven; ze komen uit Classic (§1) en staan als `not-specified` in de provenance, zodat het
-regelscherm ze niet als huisregel presenteert. De laatste rij is de uitzondering: die is geen
-Classic-waarde maar een app-keuze, en staat als zodanig gemarkeerd.
+Een regelset is pas geldig als elk veld een waarde heeft. De meeste waarden hieronder heeft
+Paul niet beschreven; ze komen uit Classic (§1) en staan als `not-specified` in de provenance,
+zodat het regelscherm ze niet als huisregel presenteert. Twee rijen zijn geen Classic-waarde
+maar een keuze van de app — `players.default` en `endGame.winner.tie` — en staan als
+`app-policy` gemarkeerd.
 
 | Pad | Ingevuld met | Waarom |
 |---|---|---|
-| `players.default` | 4 | Classic |
-| `teams.count` / `teams.teamSize` | 2 × 2, partnership | Classic |
+| `players.default` | 4 | **App-keuze, geen bronregel.** De huisregel legt het aantal niet vast; dit is alleen het getal waarmee de wizard begint. Een gestarte partij legt het gekozen aantal vast |
 | `deck.jokers` | 12 | Volgt uit zes spellen: 6 × 2 |
 | `deck.totalCards` | 324 | Volgt uit 6 × 52 + 12 |
 | `dealing.drawCount` | 1 | Classic |
@@ -529,6 +531,15 @@ zijn declaratief opgelost; er staat nergens een `if` op een variant.
    bepaald. `plannedRounds` is gewone spelconfiguratie: hij staat als instelling in de
    regelset en komt daarmee vanzelf in stap 4 van de nieuwe-partij-wizard terecht, via dezelfde
    override-pijplijn als elke andere huisregel. Elke toekomstige regelset kan hem gebruiken.
+
+3. **Een partyvorm zonder vast spelersaantal.** De bestaande `players`-configuratie heeft al
+   een `min`/`max`/`default`; tot nu toe zette elke regelset die drie op hetzelfde getal.
+   Paul's regels zet `min: 2, max: 8` en laat `default` alleen de beginstand van de wizard
+   zijn. De nieuwe-partij-stap leest die grenzen nu uit de regelset in plaats van het aantal
+   spelerslots te tellen, dus Classic en Modern American blijven vastgepind op vier en
+   Two-Handed op twee, zonder dat daar iets voor hoefde te veranderen. Dat er geen teams zijn
+   is de bestaande capability `teams: false` — Two-Handed gebruikte hem al — en de
+   indelingskeuze verdwijnt daarmee uit de stap in plaats van één optie aan te bieden.
 
 Eén ding is bewust *niet* gegeneraliseerd: `extensions.openingPerRound` (30) staat in het
 `extensions`-blok dat §35 van de specificatie daarvoor heeft. "Hoeveel gaat de opening per

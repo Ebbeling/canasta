@@ -359,8 +359,16 @@ export function NewGameRoute() {
             <PartyEditor
               draft={party}
               onChange={setParty}
-              minPlayers={mode === 'custom' ? MIN_PLAYERS : setup.playerSlots.length}
-              maxPlayers={mode === 'custom' ? MAX_PLAYERS : setup.playerSlots.length}
+              /*
+               * A standard game plays with what the rule set declares. Most
+               * declare one exact number, so the stepper is pinned and the
+               * count is not a question. One that declares a range — Paul's
+               * regels leaves it to the table — is asked, within the ceiling
+               * this interface sets for itself.
+               */
+              minPlayers={Math.max(mode === 'custom' ? MIN_PLAYERS : setup.minPlayers, MIN_PLAYERS)}
+              maxPlayers={Math.min(mode === 'custom' ? MAX_PLAYERS : setup.maxPlayers, MAX_PLAYERS)}
+              allowTeams={setup.allowsTeams}
               issues={setupIssues}
             />
             {party.mode === 'individual' ? (

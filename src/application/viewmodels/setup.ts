@@ -27,6 +27,18 @@ export interface GameSetupVM {
   teamSize: number;
   /** False for individual play: there is nothing to arrange. */
   hasTeams: boolean;
+  /**
+   * How many players this rule set allows. Most declare one exact number;
+   * a variant that leaves it to the table declares a range, and the wizard
+   * then lets the number be chosen instead of pinning it.
+   */
+  minPlayers: number;
+  maxPlayers: number;
+  /**
+   * Whether teams are a thing in this variant at all. False means the wizard
+   * offers no grouping, rather than offering one with a single option.
+   */
+  allowsTeams: boolean;
   /** Default team names, e.g. ["Team A", "Team B"] or the players' own names. */
   defaultTeamNames: string[];
   /** Step 4: only the settings this rule set allows a game to deviate on. */
@@ -69,8 +81,17 @@ export function teamSizeFor(shape: PartyShape): number {
  * Only exact divisions are offered, and never a single team — a game needs
  * someone to play against. A prime number of players therefore offers only
  * individual play, which is the honest answer rather than a silent remainder.
+ *
+ * `allowTeams` is the rule set's `teams` capability: a variant that has no
+ * teams at all offers one grouping, and it is not a grouping so much as the
+ * absence of one. That is a different thing from five players not dividing,
+ * which is why the two cases say different things on screen.
  */
-export function teamLayoutsFor(playerCount: number): PartyShape[] {
+export function teamLayoutsFor(playerCount: number, allowTeams = true): PartyShape[] {
+  if (!allowTeams) {
+    return [{ playerCount, teamCount: playerCount, mode: 'individual' }];
+  }
+
   const layouts: PartyShape[] = [];
 
   for (let teamCount = 2; teamCount <= playerCount; teamCount += 1) {
@@ -135,6 +156,9 @@ export function buildGameSetup(ruleSet: RuleSet): GameSetupVM {
     ruleSetName: ruleSet.name,
     summaryLine: description.summaryLine,
     playerSlots,
+    minPlayers: players.min,
+    maxPlayers: players.max,
+    allowsTeams: ruleSet.capabilities.teams !== false,
     teamNoun: individual
       ? { singular: 'speler', plural: 'spelers' }
       : { singular: 'team', plural: 'teams' },

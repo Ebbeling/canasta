@@ -43,16 +43,19 @@ export function PartyEditor({
   onChange,
   minPlayers,
   maxPlayers,
+  allowTeams = true,
   issues = [],
 }: {
   draft: PartyDraft;
   onChange: (next: PartyDraft) => void;
   minPlayers: number;
   maxPlayers: number;
+  /** False where the variant has no teams; the grouping block then has nothing to ask. */
+  allowTeams?: boolean;
   issues?: ValidationIssue[];
 }) {
   const playerCount = draft.playerNames.length;
-  const layouts = teamLayoutsFor(playerCount);
+  const layouts = teamLayoutsFor(playerCount, allowTeams);
   const currentLayout = layouts.find((layout) => layout.teamCount === draft.teamSeats.length);
 
   function resize(next: number) {
@@ -65,7 +68,7 @@ export function PartyEditor({
 
     // The old grouping may not divide the new count, so fall back to the
     // largest layout that does — never to something invalid.
-    const options = teamLayoutsFor(next);
+    const options = teamLayoutsFor(next, allowTeams);
     const keep = options.find((layout) => layout.teamCount === draft.teamSeats.length);
     const layout = keep ?? options[0];
     if (!layout) return;
@@ -187,6 +190,13 @@ export function PartyEditor({
           </div>
         </div>
 
+        {/*
+          A variant without teams has no grouping to choose, so it is not asked.
+          Showing a single "Ieder voor zich" chip would be a question with one
+          answer, and the note underneath would claim the count does not divide
+          — which, for four players, it plainly does.
+        */}
+        {allowTeams ? (
         <div className="border-t border-border py-3">
           <p className="text-body font-medium">Indeling</p>
           <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Teamindeling">
@@ -215,6 +225,7 @@ export function PartyEditor({
             </p>
           ) : null}
         </div>
+        ) : null}
       </Block>
       </div>
 

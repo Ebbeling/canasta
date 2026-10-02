@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import type { Game } from '@/domain/game';
 import type { Round, TeamRoundInput } from '@/domain/round';
 import { validateRuleSet } from '@/rules/validation/validateRuleSet';
 import { freezeForGame } from '@/rules/resolve/resolveRuleSet';
 import { buildFieldLayout, visibleFields } from '@/application/viewmodels/roundForm';
+import { partyOverrides } from '@/application/viewmodels/setup';
 import { calculateRoundScore } from '@/scoring/scoreEngine';
 import { evaluateRound } from '@/scoring/evaluateRound';
 import { recomputeGame } from '@/scoring/recompute';
@@ -13,35 +15,71 @@ import { paulsRules } from './paulsRules';
 /**
  * Paul's regels.
  *
- * Six things are Paul's, and they are what this file pins down: 26 cards out
- * of six decks, an opening of thirty points times the round number, red threes
- * at −300 and black at −100 a piece and always negative, a hundred for going
- * out, no concealed going out at all, and a game over an agreed number of
- * rounds with no target score anywhere in sight.
+ * What is Paul's and nobody else's is what this file pins down: everyone plays
+ * for themselves with no teams and no fixed number of players, 26 cards out of
+ * six decks, an opening of thirty points times the round number, red threes at
+ * −300 and black at −100 a piece and always negative, a hundred for going out,
+ * no concealed going out at all, and a game over an agreed number of rounds
+ * with no target score anywhere in sight.
  *
  * Everything else is Classic's, and that is tested here too — not because it
  * is interesting, but because "inherited" has to mean inherited rather than
  * retyped-and-drifted.
  */
 
-const game = makeGame(freezeForGame(paulsRules));
+/** Participant ids. Each player is their own participant, so id is the seat. */
+const P = (seat: number): string => `p${seat}`;
+const P1 = P(1);
+const P2 = P(2);
+
+/**
+ * A game of `playerCount` individual players.
+ *
+ * The rule set is frozen through the same `partyOverrides` the wizard writes,
+ * so the game under test is the one the setup flow would actually produce —
+ * including the three `players` values and the participant count.
+ */
+function gameFor(playerCount: number): Game {
+  const ruleSet = freezeForGame(
+    paulsRules,
+    partyOverrides({ playerCount, teamCount: playerCount, mode: 'individual' }),
+  );
+
+  const players = Array.from({ length: playerCount }, (_unused, seat) => ({
+    id: P(seat + 1),
+    name: `Speler ${seat + 1}`,
+    seat,
+  }));
+
+  return makeGame(ruleSet, {
+    players,
+    // One participant each: the same scoring loop, with nobody to share a
+    // total with.
+    teams: players.map((player, index) => ({
+      id: player.id,
+      name: player.name,
+      memberIds: [player.id],
+      order: index,
+    })),
+  });
+}
+
+/** Two players, which is the smallest game Paul's regels allows. */
+const game = gameFor(2);
 
 function score(input: Partial<TeamRoundInput>, roundNumber = 1): number {
   const [breakdown] = calculateRoundScore({
     ruleSet: paulsRules,
-    teamIds: [TEAM_A],
+    teamIds: [P1],
     roundNumber,
-    inputs: [teamInput(TEAM_A, input)],
-    scoreBefore: { [TEAM_A]: 0 },
+    inputs: [teamInput(P1, input)],
+    scoreBefore: { [P1]: 0 },
   });
   return breakdown?.total ?? 0;
 }
 
-function round(
-  sequence: number,
-  a: Partial<TeamRoundInput>,
-  b: Partial<TeamRoundInput> = {},
-): Round {
+/** One round, with an entry per participant in seat order. */
+function roundOf(sequence: number, inputs: readonly Partial<TeamRoundInput>[]): Round {
   return {
     id: `round-${sequence}`,
     gameId: 'game-1',
@@ -49,11 +87,19 @@ function round(
     status: 'committed',
     createdAt: '2026-09-19T10:00:00.000Z',
     updatedAt: '2026-09-19T10:00:00.000Z',
-    input: { teams: [teamInput(TEAM_A, a), teamInput(TEAM_B, b)] },
+    input: { teams: inputs.map((input, index) => teamInput(P(index + 1), input)) },
   };
 }
 
-/** `n` rounds in which A scores `a` card points and B scores `b`. */
+function round(
+  sequence: number,
+  a: Partial<TeamRoundInput>,
+  b: Partial<TeamRoundInput> = {},
+): Round {
+  return roundOf(sequence, [a, b]);
+}
+
+/** `n` rounds in which player 1 scores `a` card points and player 2 scores `b`. */
 function rounds(n: number, a: number, b: number): Round[] {
   return Array.from({ length: n }, (_unused, index) =>
     round(index + 1, { cardPoints: a }, { cardPoints: b }),
@@ -113,16 +159,139 @@ describe('the rule set itself', () => {
   });
 });
 
+describe('everyone plays for themselves', () => {
+  it('declares an individual party and no teams at all', () => {
+    expect(paulsRules.configuration.teams.mode).toBe('individual');
+    expect(paulsRules.configuration.teams.teamSize).toBe(1);
+    expect(paulsRules.capabilities.teams).toBe(false);
+  });
+
+  it('leaves the number of players to the table, within what the app allows', () => {
+    expect(paulsRules.configuration.players.min).toBe(2);
+    expect(paulsRules.configuration.players.max).toBe(8);
+  });
+
+  it('says the player count is a choice, not a rule nobody wrote down', () => {
+    const entry = paulsRules.provenance.entries.find((item) => item.path === 'players.default');
+
+    expect(entry?.status).toBe('app-policy');
+    expect(entry?.note).toContain('legt het aantal spelers niet vast');
+    expect(entry?.source).toBeUndefined();
+  });
+
+  it('claims nowhere that it is played with four players in two teams', () => {
+    // Every sentence the rules screen can show: the settings and the
+    // provenance. The word "partnership" still appears as the *unchosen*
+    // option of the indeling setting, which is how a select says what it is
+    // not — so the configured value is what gets asserted here.
+    const prose = [
+      ...paulsRules.settings.flatMap((setting) => [setting.label, setting.help ?? '']),
+      ...paulsRules.provenance.entries.map((entry) => entry.note),
+      paulsRules.provenance.notes ?? '',
+      paulsRules.description,
+    ].join(' ');
+
+    expect(prose).not.toMatch(/teams van/);
+    expect(prose).not.toMatch(/4 spelers/);
+    expect(paulsRules.configuration.teams.mode).not.toBe('partnership');
+    expect(paulsRules.settings.some((setting) => setting.key === 'teams.count')).toBe(false);
+  });
+
+  it.each([2, 3, 4, 6])('plays with %i individual participants', (playerCount) => {
+    const party = gameFor(playerCount);
+
+    expect(party.players).toHaveLength(playerCount);
+    expect(party.teams).toHaveLength(playerCount);
+    for (const team of party.teams) {
+      expect(team.memberIds).toHaveLength(1);
+    }
+
+    const { teams, players } = party.effectiveRuleSet.configuration;
+    expect(teams).toEqual({ mode: 'individual', count: playerCount, teamSize: 1 });
+    expect(players).toEqual({ min: playerCount, max: playerCount, default: playerCount });
+  });
+
+  it.each([2, 3, 4, 6])('keeps a running total per player with %i of them', (playerCount) => {
+    const party = gameFor(playerCount);
+    // Everyone scores their seat number times a hundred, every round.
+    const points = Array.from({ length: playerCount }, (_unused, seat) => (seat + 1) * 100);
+    const played = [1, 2, 3].map((sequence) =>
+      roundOf(
+        sequence,
+        points.map((cardPoints) => ({ cardPoints })),
+      ),
+    );
+
+    const { projection } = recomputeGame({ game: party, rounds: played });
+
+    for (const [seat, perRound] of points.entries()) {
+      expect(projection.totalsByTeam[P(seat + 1)]).toBe(perRound * 3);
+    }
+    // Highest total on top, and no two participants share one.
+    expect(projection.standings.map((entry) => entry.teamId)).toEqual(
+      points.map((_unused, seat) => P(seat + 1)).reverse(),
+    );
+  });
+
+  it('deals 26 cards to each of them, however many there are', () => {
+    for (const playerCount of [2, 3, 4, 6, 8]) {
+      const { dealing, deck } = gameFor(playerCount).effectiveRuleSet.configuration;
+
+      expect(dealing.cardsPerPlayer).toBe(26);
+      expect(deck.standardDecks).toBe(6);
+      // The six decks have to cover the deal: 8 × 26 is 208 of 324.
+      expect(dealing.cardsPerPlayer * playerCount).toBeLessThanOrEqual(deck.totalCards);
+    }
+  });
+
+  it('crowns the highest individual total, with four players', () => {
+    // The brief's own example, now as four people rather than two partnerships.
+    const party = gameFor(4);
+    const played = [
+      roundOf(1, [
+        { cardPoints: 2000 },
+        { cardPoints: 2200 },
+        { cardPoints: 1900 },
+        { cardPoints: 2100 },
+      ]),
+      roundOf(2, [
+        { cardPoints: 1500 },
+        { cardPoints: 1600 },
+        { cardPoints: 1500 },
+        { cardPoints: 1550 },
+      ]),
+      roundOf(3, [
+        { cardPoints: 1320 },
+        { cardPoints: 1340 },
+        { cardPoints: 1360 },
+        { cardPoints: 1360 },
+      ]),
+      ...Array.from({ length: 7 }, (_unused, index) => roundOf(index + 4, [{}, {}, {}, {}])),
+    ];
+
+    const { projection } = recomputeGame({ game: party, rounds: played });
+
+    expect(projection.totalsByTeam).toEqual({
+      [P(1)]: 4820,
+      [P(2)]: 5140,
+      [P(3)]: 4760,
+      [P(4)]: 5010,
+    });
+    expect(projection.status).toBe('finished');
+    expect(projection.result?.winnerTeamIds).toEqual([P(2)]);
+  });
+});
+
 describe('the opening requirement grows with the round', () => {
   function opening(roundNumber: number, scoreBefore = 0): number | null {
     const computation = evaluateRound({
       ruleSet: paulsRules,
-      teamIds: [TEAM_A],
+      teamIds: [P1],
       roundNumber,
-      inputs: [teamInput(TEAM_A, {})],
-      scoreBefore: { [TEAM_A]: scoreBefore },
+      inputs: [teamInput(P1, {})],
+      scoreBefore: { [P1]: scoreBefore },
     });
-    return computation.initialMeldRequirement[TEAM_A] ?? null;
+    return computation.initialMeldRequirement[P1] ?? null;
   }
 
   it.each([
@@ -152,26 +321,26 @@ describe('the opening requirement grows with the round', () => {
   it('asks every team the same number', () => {
     const computation = evaluateRound({
       ruleSet: paulsRules,
-      teamIds: [TEAM_A, TEAM_B],
+      teamIds: [P1, P2],
       roundNumber: 6,
-      inputs: [teamInput(TEAM_A, {}), teamInput(TEAM_B, {})],
-      scoreBefore: { [TEAM_A]: 3200, [TEAM_B]: 100 },
+      inputs: [teamInput(P1, {}), teamInput(P2, {})],
+      scoreBefore: { [P1]: 3200, [P2]: 100 },
     });
 
-    expect(computation.initialMeldRequirement[TEAM_A]).toBe(180);
-    expect(computation.initialMeldRequirement[TEAM_B]).toBe(180);
+    expect(computation.initialMeldRequirement[P1]).toBe(180);
+    expect(computation.initialMeldRequirement[P2]).toBe(180);
   });
 
   it('leaves Classic on its staircase', () => {
     const computation = evaluateRound({
       ruleSet: classic,
-      teamIds: [TEAM_A],
+      teamIds: [P1],
       roundNumber: 7,
-      inputs: [teamInput(TEAM_A, {})],
-      scoreBefore: { [TEAM_A]: 1600 },
+      inputs: [teamInput(P1, {})],
+      scoreBefore: { [P1]: 1600 },
     });
 
-    expect(computation.initialMeldRequirement[TEAM_A]).toBe(90);
+    expect(computation.initialMeldRequirement[P1]).toBe(90);
   });
 });
 
@@ -228,10 +397,10 @@ describe('threes are a penalty, always', () => {
   it('leaves Classic alone: there, an opened team scores its red threes', () => {
     const [breakdown] = calculateRoundScore({
       ruleSet: classic,
-      teamIds: [TEAM_A],
+      teamIds: [P1],
       roundNumber: 1,
-      inputs: [teamInput(TEAM_A, { redThrees: 2, opened: true })],
-      scoreBefore: { [TEAM_A]: 0 },
+      inputs: [teamInput(P1, { redThrees: 2, opened: true })],
+      scoreBefore: { [P1]: 0 },
     });
 
     expect(breakdown?.total).toBe(200);
@@ -307,7 +476,7 @@ describe('the game ends on rounds, not on a score', () => {
     // American's 8.500 is still ahead. Neither figure means anything here.
     const { projection } = recomputeGame({ game, rounds: rounds(9, 800, 700) });
 
-    expect(projection.totalsByTeam[TEAM_A]).toBe(7200);
+    expect(projection.totalsByTeam[P1]).toBe(7200);
     expect(projection.status).toBe('active');
     expect(projection.endState.kind).toBe('inProgress');
   });
@@ -346,9 +515,13 @@ describe('the game ends on rounds, not on a score', () => {
   it('follows a house rule that shortens the game', () => {
     // The round count is ordinary game configuration, so a game may deviate on
     // it through the same override pipeline as any other setting.
-    const short = makeGame(
-      freezeForGame(paulsRules, [{ path: 'endGame.plannedRounds', value: 4 }]),
-    );
+    const twoPlayers = gameFor(2);
+    const short: Game = {
+      ...twoPlayers,
+      effectiveRuleSet: freezeForGame(twoPlayers.effectiveRuleSet, [
+        { path: 'endGame.plannedRounds', value: 4 },
+      ]),
+    };
     const { projection } = recomputeGame({ game: short, rounds: rounds(4, 500, 400) });
 
     expect(projection.status).toBe('finished');
@@ -372,9 +545,9 @@ describe('the winner is the highest total over all rounds', () => {
   it('adds every round up and crowns the larger sum', () => {
     const { projection } = recomputeGame({ game, rounds: example });
 
-    expect(projection.totalsByTeam[TEAM_A]).toBe(4820);
-    expect(projection.totalsByTeam[TEAM_B]).toBe(5140);
-    expect(projection.result?.winnerTeamIds).toEqual([TEAM_B]);
+    expect(projection.totalsByTeam[P1]).toBe(4820);
+    expect(projection.totalsByTeam[P2]).toBe(5140);
+    expect(projection.result?.winnerTeamIds).toEqual([P2]);
     expect(projection.result?.tie).toBe(false);
   });
 
@@ -386,9 +559,9 @@ describe('the winner is the highest total over all rounds', () => {
     ];
     const { projection } = recomputeGame({ game, rounds: lastRoundSwing });
 
-    expect(projection.totalsByTeam[TEAM_A]).toBe(1500);
-    expect(projection.totalsByTeam[TEAM_B]).toBe(3700);
-    expect(projection.result?.winnerTeamIds).toEqual([TEAM_B]);
+    expect(projection.totalsByTeam[P1]).toBe(1500);
+    expect(projection.totalsByTeam[P2]).toBe(3700);
+    expect(projection.result?.winnerTeamIds).toEqual([P2]);
   });
 
   it('is not the team that won the most rounds', () => {
@@ -401,17 +574,17 @@ describe('the winner is the highest total over all rounds', () => {
     ];
     const { projection } = recomputeGame({ game, rounds: manySmallWins });
 
-    expect(projection.totalsByTeam[TEAM_A]).toBe(1500);
-    expect(projection.totalsByTeam[TEAM_B]).toBe(1090);
-    expect(projection.result?.winnerTeamIds).toEqual([TEAM_A]);
+    expect(projection.totalsByTeam[P1]).toBe(1500);
+    expect(projection.totalsByTeam[P2]).toBe(1090);
+    expect(projection.result?.winnerTeamIds).toEqual([P1]);
   });
 
   it('is not whoever passed some score first', () => {
     const { projection } = recomputeGame({ game, rounds: rounds(10, 700, 900) });
 
-    expect(projection.totalsByTeam[TEAM_A]).toBe(7000);
-    expect(projection.totalsByTeam[TEAM_B]).toBe(9000);
-    expect(projection.result?.winnerTeamIds).toEqual([TEAM_B]);
+    expect(projection.totalsByTeam[P1]).toBe(7000);
+    expect(projection.totalsByTeam[P2]).toBe(9000);
+    expect(projection.result?.winnerTeamIds).toEqual([P2]);
   });
 
   it('plays one more round when the totals are exactly level', () => {
@@ -431,7 +604,7 @@ describe('the winner is the highest total over all rounds', () => {
     const { projection } = recomputeGame({ game, rounds: levelThenDecided });
 
     expect(projection.status).toBe('finished');
-    expect(projection.result?.winnerTeamIds).toEqual([TEAM_A]);
+    expect(projection.result?.winnerTeamIds).toEqual([P1]);
     expect(projection.result?.decidedAfterRound).toBe(11);
   });
 });
@@ -440,10 +613,10 @@ describe('nothing about Classic changed', () => {
   it('scores a Classic round exactly as before', () => {
     const [breakdown] = calculateRoundScore({
       ruleSet: classic,
-      teamIds: [TEAM_A],
+      teamIds: [P1],
       roundNumber: 1,
       inputs: [
-        teamInput(TEAM_A, {
+        teamInput(P1, {
           cardPoints: 420,
           naturalCanastas: 1,
           mixedCanastas: 1,
@@ -453,18 +626,40 @@ describe('nothing about Classic changed', () => {
           concealedGoingOut: true,
         }),
       ],
-      scoreBefore: { [TEAM_A]: 0 },
+      scoreBefore: { [P1]: 0 },
     });
 
     // 420 + 500 + 300 + 200 (red threes) + 200 (concealed, replacing 100)
     expect(breakdown?.total).toBe(1620);
   });
 
+  it('still plays Classic with four players in two partnerships', () => {
+    expect(classic.configuration.players).toEqual({ min: 4, max: 4, default: 4 });
+    expect(classic.configuration.teams).toEqual({ mode: 'partnership', count: 2, teamSize: 2 });
+    expect(classic.capabilities.teams).toBe(true);
+  });
+
   it('still ends a Classic game on its target score', () => {
+    // Classic's own shape, from the shared fixture: two partnerships of two.
     const classicGame = makeGame(freezeForGame(classic));
+    const classicRounds = (n: number, a: number, b: number): Round[] =>
+      Array.from({ length: n }, (_unused, index) => ({
+        id: `classic-${index + 1}`,
+        gameId: classicGame.id,
+        sequence: index + 1,
+        status: 'committed' as const,
+        createdAt: '2026-09-19T10:00:00.000Z',
+        updatedAt: '2026-09-19T10:00:00.000Z',
+        input: {
+          teams: [
+            teamInput(TEAM_A, { cardPoints: a, opened: true }),
+            teamInput(TEAM_B, { cardPoints: b, opened: true }),
+          ],
+        },
+      }));
 
     // Four rounds: 4.400 against 3.600, nobody past the target yet.
-    const running = recomputeGame({ game: classicGame, rounds: rounds(4, 1100, 900) });
+    const running = recomputeGame({ game: classicGame, rounds: classicRounds(4, 1100, 900) });
     expect(running.projection.endState).toEqual({
       kind: 'inProgress',
       objective: { kind: 'targetScore', targetScore: 5000 },
@@ -472,7 +667,7 @@ describe('nothing about Classic changed', () => {
 
     // The fifth takes A past 5.000, and a Classic game ends there — ten rounds
     // is a Paul's rule and must not have leaked anywhere near this one.
-    const finished = recomputeGame({ game: classicGame, rounds: rounds(5, 1100, 900) });
+    const finished = recomputeGame({ game: classicGame, rounds: classicRounds(5, 1100, 900) });
     expect(finished.projection.status).toBe('finished');
     expect(finished.projection.result?.decidedAfterRound).toBe(5);
     expect(finished.projection.result?.winnerTeamIds).toEqual([TEAM_A]);

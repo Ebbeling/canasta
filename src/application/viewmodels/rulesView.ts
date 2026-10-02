@@ -194,10 +194,20 @@ function buildBadge(ruleSet: RuleSet, setting: SettingDefinition): StatusBadgeVM
 
 function summaryFacts(configuration: RuleSetConfiguration): SummaryFactVM[] {
   const { players, teams, dealing, deck, endGame } = configuration;
-  const playerCount = pluralise(players.default, 'speler', 'spelers');
+
+  // A rule set that pins the number says it; one that leaves it to the table
+  // says the range instead, so its card does not claim a count it has not got.
+  const open = players.min !== players.max;
+  const countText = open
+    ? `${formatPoints(players.min)}–${formatPoints(players.max)}`
+    : formatPoints(players.default);
 
   const facts: SummaryFactVM[] = [
-    { label: 'Spelers', valueText: formatPoints(players.default), phrase: playerCount },
+    {
+      label: 'Spelers',
+      valueText: countText,
+      phrase: open ? `${countText} spelers` : pluralise(players.default, 'speler', 'spelers'),
+    },
   ];
 
   // A rule set for individual play has no meaningful team count to show.

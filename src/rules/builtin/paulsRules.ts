@@ -63,7 +63,6 @@ const INHERITED_SCORING_RULES = new Set([
 const INHERITED_SETTING_KEYS = new Set([
   'dealing.cardsPerPlayer',
   'dealing.drawCount',
-  'teams.count',
   'deck.standardDecks',
   'deck.jokers',
   'scoring.canastas.natural',
@@ -115,8 +114,6 @@ function inherited(note: string) {
 const ARITHMETIC = new Set(['deck.jokers']);
 
 const INHERITED_NOTES: Record<string, string> = {
-  'players.default': 'Niet door de huisregel beschreven; overgenomen uit Classic: 4 spelers.',
-  'teams.count': 'Niet door de huisregel beschreven; overgenomen uit Classic: 2 teams van 2.',
   'deck.jokers': 'Volgt uit zes spellen: 6 × 2 jokers.',
   'scoring.canastas.natural': 'Niet door de huisregel beschreven; bonussen uit Classic.',
   'scoring.canastas.mixed': 'Niet door de huisregel beschreven; bonussen uit Classic.',
@@ -132,12 +129,17 @@ const INHERITED_NOTES: Record<string, string> = {
  * Paul's regels.
  *
  * Een huisvariant, en daarmee de eerste regelset zonder publieke bron om tegen
- * aan te houden. Wat Paul beschrijft staat hieronder: 26 kaarten per speler uit
- * zes spellen, een opening van dertig punten maal het rondenummer, rode drieën
- * −300 en zwarte −100 per stuk en altijd negatief, honderd punten voor uitgaan,
- * geen verborgen uitgaan, en een partij over een afgesproken aantal rondes in
- * plaats van naar een doelscore. Al het andere komt uit Classic Canasta en
- * staat als zodanig in de provenance — er is hier niets bijverzonnen.
+ * aan te houden. Wat Paul beschrijft staat hieronder: ieder speelt voor zich,
+ * 26 kaarten per speler uit zes spellen, een opening van dertig punten maal het
+ * rondenummer, rode drieën −300 en zwarte −100 per stuk en altijd negatief,
+ * honderd punten voor uitgaan, geen verborgen uitgaan, en een partij over een
+ * afgesproken aantal rondes in plaats van naar een doelscore. Al het andere
+ * komt uit Classic Canasta en staat als zodanig in de provenance — er is hier
+ * niets bijverzonnen.
+ *
+ * Hoeveel spelers er meedoen staat er níét bij, en dat is zelf de regel: het
+ * wordt per partij gekozen. De regelset zegt daarom alleen wat de vorm is —
+ * ieder voor zich, twee tot acht — en laat het getal aan de setup.
  *
  * Twee dingen verdienen uitleg, omdat ze de architectuur raken:
  *
@@ -170,6 +172,14 @@ export const paulsRules: RuleSet = {
         status: 'app-policy',
         note: 'Geen bron beschrijft een exact gelijkspel. Deze app speelt dan een extra ronde.',
       },
+      {
+        // De huisregel zegt wél dat iedereen voor zich speelt, maar niet met
+        // hoeveel. Dat is dus geen ontbrekende bronregel maar een keuze die
+        // per partij gemaakt wordt, en zo staat het er ook.
+        path: 'players.default',
+        status: 'app-policy',
+        note: 'De huisregel legt het aantal spelers niet vast. Je kiest het per partij; de app staat 2 tot 8 spelers toe.',
+      },
       ...Object.entries(INHERITED_NOTES).map(([path, note]) => ({
         path,
         status: 'not-specified' as const,
@@ -178,11 +188,20 @@ export const paulsRules: RuleSet = {
       })),
     ],
     notes:
-      "Paul's regels zijn huisregels; er is geen publicatie om ze tegen aan te houden. Beschreven zijn: 26 kaarten per speler, zes spellen, openingsmelding 30 punten maal het rondenummer, rode drie −300 en zwarte drie −100 per stuk en altijd negatief, uitgaan +100, geen verborgen uitgaan, en een vast aantal rondes zonder doelscore. Elke andere waarde komt uit Classic Canasta en is hierboven als 'niet beschreven' gemarkeerd.",
+      "Paul's regels zijn huisregels; er is geen publicatie om ze tegen aan te houden. Beschreven zijn: ieder speelt voor zich zonder teams, 26 kaarten per speler, zes spellen, openingsmelding 30 punten maal het rondenummer, rode drie −300 en zwarte drie −100 per stuk en altijd negatief, uitgaan +100, geen verborgen uitgaan, en een vast aantal rondes zonder doelscore. Het aantal spelers ligt niet vast en wordt per partij gekozen. Elke andere waarde komt uit Classic Canasta en is hierboven als 'niet beschreven' gemarkeerd.",
   },
 
   configuration: {
     ...structuredClone(classic.configuration),
+
+    // Vrij te kiezen bij het starten van een partij, binnen het bereik dat de
+    // app aankan. `default` is alleen waar de wizard begint; zodra een partij
+    // start legt de gekozen indeling alle drie de waarden vast.
+    players: { min: 2, max: 8, default: 4 },
+    // Ieder voor zich: elke speler is een eigen deelnemer met een eigen totaal.
+    // Eén deelnemer per "team" houdt dezelfde telling aan het werk, zonder dat
+    // er ergens een tweede code-pad voor individueel spel bestaat.
+    teams: { mode: 'individual', count: 4, teamSize: 1 },
 
     deck: { standardDecks: 6, jokers: 12, totalCards: 324 },
     // Bewust 26, niet 2 × 13: het is één stapel van 26 kaarten per speler.
@@ -243,6 +262,9 @@ export const paulsRules: RuleSet = {
 
   capabilities: {
     ...classic.capabilities,
+    // Niet "er zijn er nu geen", maar "deze variant kent ze niet". De
+    // indelingskeuze in de wizard leest dit en biedt er dus geen aan.
+    teams: false,
     blackThrees: true,
     concealedGoingOut: false,
   },
@@ -341,16 +363,34 @@ export const paulsRules: RuleSet = {
 
     const added: SettingDefinition[] = [
       {
-        // Classic declares the team count but not the player count, and the
-        // player count is one of the values Paul's regels had to borrow — so
-        // it needs a label of its own to be disclosed under.
+        key: 'teams.mode',
+        label: 'Indeling',
+        help: 'Ieder speelt voor zich. Deze variant kent geen teams.',
+        type: 'select',
+        category: 'setup',
+        editable: false,
+        effect: 'advisory',
+        status: 'verified',
+        order: 12,
+        options: [
+          { value: 'partnership', label: 'In teams' },
+          { value: 'individual', label: 'Ieder voor zich' },
+        ],
+      },
+      {
+        // Niet door de huisregel vastgelegd: het wordt per partij gekozen. Wat
+        // hier staat is daarom het getal waarmee de wizard begint, en in een
+        // gestarte partij het aantal waarmee die partij gespeeld wordt.
         key: 'players.default',
         label: 'Aantal spelers',
+        help: 'Kies bij het starten van een partij hoeveel spelers meedoen, van 2 tot 8.',
         type: 'number',
         category: 'setup',
         editable: false,
         effect: 'advisory',
-        ...inherited(INHERITED_NOTES['players.default']!),
+        status: 'app-policy',
+        statusNote:
+          'De huisregel legt het aantal spelers niet vast. Je kiest het per partij; de app staat 2 tot 8 spelers toe.',
         order: 15,
       },
       {
