@@ -116,10 +116,7 @@ function Standings({ board }: { board: ScoreboardVM }) {
 
             <div className="mt-2.5 flex items-center gap-2.5">
               <div className="min-w-0 flex-1">
-                <ProgressBar
-                  value={team.progress}
-                  label={`${team.name}: voortgang naar de doelscore`}
-                />
+                <ProgressBar value={team.progress} label={team.progressLabel} />
               </div>
               <span className="shrink-0 whitespace-nowrap text-caption tabular text-muted">
                 {team.infoLines[0]}
@@ -150,11 +147,7 @@ function Standings({ board }: { board: ScoreboardVM }) {
 
             <div className="col-start-2 col-end-[-1] flex items-center gap-2.5">
               <div className="min-w-0 flex-1">
-                <ProgressBar
-                  value={team.progress}
-                  label={`${team.name}: voortgang naar de doelscore`}
-                  dimmed
-                />
+                <ProgressBar value={team.progress} label={team.progressLabel} dimmed />
               </div>
               <span className="shrink-0 whitespace-nowrap text-xs tabular text-muted">
                 {team.infoLines[0]}
@@ -170,7 +163,7 @@ function Standings({ board }: { board: ScoreboardVM }) {
 }
 
 /**
- * What both shapes of the card say underneath: the target, and the melds.
+ * What both shapes of the card say underneath: the objective, and the melds.
  *
  * The opening requirement can differ per team, so it is only folded into one
  * line when every team happens to need the same. The sentences themselves come
@@ -182,7 +175,7 @@ function BoardFooter({ board }: { board: ScoreboardVM }) {
   return (
     <div className="mt-3 flex flex-col gap-1 border-t border-border pt-3 text-caption text-muted">
       <span>
-        Doel <b className="tabular text-ink">{board.targetScoreText}</b>
+        {board.objective.term} <b className="tabular text-ink">{board.objective.valueText}</b>
       </span>
       {meldLines.length === 1 ? <span>{meldLines[0]}</span> : null}
       {meldLines.length > 1
@@ -246,7 +239,7 @@ function ScoreCard({ board }: { board: ScoreboardVM }) {
             <div className="min-w-0 flex-1">
               <ProgressBar
                 value={team.progress}
-                label={`${team.name}: voortgang naar de doelscore`}
+                label={team.progressLabel}
                 dimmed={!team.isLeader}
               />
             </div>
@@ -294,7 +287,7 @@ function ResultCard({
         {outcome.winnerNames.join(' en ')}
       </p>
       <p className="text-sm text-accent-ink/90">
-        Beslist na ronde {outcome.decidedAfterRound} · doel {board.targetScoreText} punten
+        Beslist na ronde {outcome.decidedAfterRound} · {board.objective.inline}
         {outcome.tie && winningTotal ? ` · beide op ${winningTotal}` : ''}
       </p>
     </Card>
@@ -341,7 +334,7 @@ function FinalStandings({ board }: { board: ScoreboardVM }) {
       ))}
 
       <p className="pt-3.5 text-caption text-muted">
-        Doel <b className="tabular text-ink">{board.targetScoreText}</b>
+        {board.objective.term} <b className="tabular text-ink">{board.objective.valueText}</b>
       </p>
     </Card>
   );
@@ -445,7 +438,7 @@ export function ScoreboardRoute() {
       <div className="flex flex-1 flex-col">
       <AppBar
         title={data.gameName ?? data.teams.map((team) => team.name).join(' · ')}
-        subtitle={`${data.ruleSetName} · doel ${data.targetScoreText} punten`}
+        subtitle={`${data.ruleSetName} · ${data.objective.inline}`}
         back="/"
         action={
           <IconButton label="Meer acties" onClick={() => setMenuOpen(true)}>
@@ -470,10 +463,7 @@ export function ScoreboardRoute() {
             <SectionLabel as="h2" tone="warn">
               Gelijkspel
             </SectionLabel>
-            <p className="text-body font-medium">
-              {data.outcome.leaderNames.join(' en ')} staan precies gelijk op{' '}
-              {data.targetScoreText} punten of meer.
-            </p>
+            <p className="text-body font-medium">{data.outcome.headline}</p>
             {/* An app choice, presented as one — no source describes an exact tie. */}
             <p className="text-note leading-snug text-muted">{data.outcome.note}</p>
           </Card>
@@ -493,7 +483,7 @@ export function ScoreboardRoute() {
         {data.canAddRound ? (
           <LinkButton to={`/games/${data.gameId}/round`} variant="primary" size="xl" block>
             <Plus />
-            Ronde {data.nextRoundNumber} invoeren
+            {data.nextRoundLabel} invoeren
           </LinkButton>
         ) : (
           <>

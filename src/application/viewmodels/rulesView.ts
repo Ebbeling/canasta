@@ -220,12 +220,31 @@ function summaryFacts(configuration: RuleSetConfiguration): SummaryFactVM[] {
       valueText: formatPoints(deck.totalCards),
       phrase: `${formatPoints(deck.totalCards)} kaarten in het spel`,
     },
-    {
+  );
+
+  // How the game ends, which is also how the winner is decided. A rule set
+  // that plays a fixed number of rounds has no target score to show, and
+  // showing "doel 0 punten" would be worse than saying nothing.
+  if (endGame.mode === 'plannedRounds') {
+    facts.push(
+      {
+        label: 'Aantal rondes',
+        valueText: formatPoints(endGame.plannedRounds),
+        phrase: pluralise(endGame.plannedRounds, 'ronde', 'rondes'),
+      },
+      {
+        label: 'Winnaar',
+        valueText: 'Hoogste totaal',
+        phrase: 'hoogste totaal wint',
+      },
+    );
+  } else {
+    facts.push({
       label: 'Doelscore',
       valueText: formatPoints(endGame.targetScore),
       phrase: `doel ${formatPoints(endGame.targetScore)} punten`,
-    },
-  );
+    });
+  }
 
   return facts;
 }

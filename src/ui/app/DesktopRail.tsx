@@ -196,8 +196,8 @@ function GameContext({ gameId }: { gameId: string }) {
           </p>
           <p className="mt-1.5 text-caption text-muted">
             {board.data.ruleSetName} ·{' '}
-            {board.data.roundCount === 0 ? 'nog geen ronde' : `na ronde ${board.data.roundCount}`} ·
-            doel {board.data.targetScoreText}
+            {board.data.roundCount === 0 ? 'nog geen ronde' : `na ronde ${board.data.roundCount}`} ·{' '}
+            {board.data.objective.inline}
           </p>
         </div>
       ) : null}

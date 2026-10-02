@@ -230,6 +230,16 @@ function checkExpressions(ruleSet: RuleSet, modules: RuleModuleRegistry): Valida
     }
   }
 
+  // The computed opening minimum, where a rule set carries one. It is asked
+  // once per round for every team at once, so a team-scoped reference in it
+  // would be a rule that cannot be evaluated at the moment it is needed.
+  const requirement = ruleSet.configuration.initialMeld.requirement;
+  if (requirement) {
+    const refs = newRefs();
+    collectRefs(requirement, refs);
+    check(refs, "Openingsmelding 'initialMeld.requirement'", true);
+  }
+
   for (const field of ruleSet.fields) {
     if (!field.visibleWhen) continue;
     const refs = newRefs();

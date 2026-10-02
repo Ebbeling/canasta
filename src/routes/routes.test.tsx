@@ -86,13 +86,16 @@ describe('routing', () => {
     expect(await screen.findByRole('heading', { name: 'Canasta' })).toBeInTheDocument();
   });
 
-  it('shows the new-game screen with the three built-in rule sets', async () => {
+  it('shows the new-game screen with every built-in rule set', async () => {
     renderAt(await newContext(), '/new');
 
     expect(await screen.findByRole('heading', { name: 'Nieuwe partij' })).toBeInTheDocument();
     expect(await screen.findByText('Classic Canasta')).toBeInTheDocument();
     expect(screen.getByText('Modern American Canasta')).toBeInTheDocument();
     expect(screen.getByText('Two-Handed Canasta')).toBeInTheDocument();
+    // A new built-in appears here because it was added to the registry, not
+    // because this screen learned a fourth name.
+    expect(screen.getByText("Paul's regels")).toBeInTheDocument();
   });
 
   it('shows a not-found panel for an unknown game', async () => {

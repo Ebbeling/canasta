@@ -13,6 +13,9 @@ export const input = (field: FieldId, fallback?: number): NumExpr => ({
 
 export const count = (field: FieldId): NumExpr => ({ op: 'count', field });
 
+/** The round being scored, counting from 1. */
+export const roundNumber = (): NumExpr => ({ op: 'roundNumber' });
+
 export const config = (path: ConfigPath, fallback?: number): NumExpr => ({
   op: 'config',
   path,

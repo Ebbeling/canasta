@@ -1,6 +1,6 @@
 import type { TeamId } from '@/domain/ids';
 import type { RoundComputation, TeamRoundScore } from '@/domain/round';
-import { initialMeldRequirement } from '@/rules/initialMeld/thresholds';
+import { openingRequirement } from './openingRequirement';
 import { buildContext, scoreTeamRound, ENGINE_VERSION, type BuildContextArgs } from './scoreEngine';
 import { validateRoundWithContext } from './validateRound';
 
@@ -26,7 +26,7 @@ export function evaluateRound(args: BuildContextArgs): RoundComputation {
     const before = args.scoreBefore[teamId] ?? 0;
     const delta = scores.find((score) => score.teamId === teamId)?.total ?? 0;
     scoreAfter[teamId] = before + delta;
-    requirement[teamId] = initialMeldRequirement(ctx.config, before)?.required ?? null;
+    requirement[teamId] = openingRequirement(ctx, before);
   }
 
   return {

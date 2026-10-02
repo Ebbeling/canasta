@@ -10,10 +10,11 @@ import { TEAM_A, TEAM_B, teamInput } from '@/test/fixtures';
 describe('every built-in rule set', () => {
   const ruleSets = [...BUILTIN_RULE_SETS.values()];
 
-  it('covers Classic, Modern American and Two-Handed', () => {
+  it("covers Classic, Modern American, Two-Handed and Paul's regels", () => {
     expect(ruleSets.map((ruleSet) => ruleSet.id).sort()).toEqual([
       'builtin.classic',
       'builtin.modernAmerican',
+      'builtin.paulsRules',
       'builtin.twoHanded',
     ]);
   });
@@ -34,9 +35,21 @@ describe('every built-in rule set', () => {
     },
   );
 
+  /**
+   * A published variant must say where it was read and when. A house variant
+   * cannot — there is nothing to cite — so it has to declare itself one in the
+   * provenance instead, rather than borrow a URL that does not describe it.
+   * Those are the only two acceptable answers; silence is not one of them.
+   */
   it.each(ruleSets.map((ruleSet) => [ruleSet.name, ruleSet] as const))(
-    '%s cites a source with a URL and a retrieval date',
+    '%s either cites a source or declares itself a house rule set',
     (_name, ruleSet) => {
+      if (ruleSet.source.url === undefined) {
+        expect(ruleSet.provenance.notes ?? '').not.toBe('');
+        expect(ruleSet.source.retrievedAt).toBeUndefined();
+        return;
+      }
+
       expect(ruleSet.source.url).toMatch(/^https:\/\//);
       expect(ruleSet.source.retrievedAt).toBe('2026-09-19');
     },

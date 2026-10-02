@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createTestStorage, type TestStorage } from '@/storage/testing';
 import { fixedClock } from '@/storage/time';
-import { BUILTIN_RULE_SETS, classic, modernAmerican, twoHanded } from '@/rules/builtin';
+import { BUILTIN_RULE_SETS, classic, modernAmerican, paulsRules, twoHanded } from '@/rules/builtin';
 import { cloneRuleSet } from '@/rules/resolve/resolveRuleSet';
 import { createServices, type Services } from './index';
 import { buildFieldLayout } from '@/application/viewmodels/roundForm';
@@ -407,12 +407,13 @@ describe('rounds.remove', () => {
 });
 
 describe('ruleSets', () => {
-  it('lists the three built-ins with a summary line', async () => {
+  it('lists every built-in with a summary line', async () => {
     const choices = await services.ruleSets.listAvailable();
 
     expect(choices.map((choice) => choice.id).sort()).toEqual([
       classic.id,
       modernAmerican.id,
+      paulsRules.id,
       twoHanded.id,
     ]);
     for (const choice of choices) {

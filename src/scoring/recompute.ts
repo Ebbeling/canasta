@@ -1,10 +1,11 @@
 import type { TeamId } from '@/domain/ids';
 import type { ValidationIssue } from '@/domain/result';
-import type { EndState, Game, GameProjection } from '@/domain/game';
-import type { Round } from '@/domain/round';
-import { initialMeldRequirement } from '@/rules/initialMeld/thresholds';
+import { objectiveFor, type EndState, type Game, type GameProjection } from '@/domain/game';
+import { emptyTeamRoundInput, type Round } from '@/domain/round';
 import type { RuleModuleRegistry } from '@/rules/registry/ruleModule';
 import { evaluateRound } from './evaluateRound';
+import { openingRequirement } from './openingRequirement';
+import { buildContext } from './scoreEngine';
 
 export interface RecomputeArgs {
   game: Game;
@@ -73,10 +74,22 @@ export function recomputeGame(args: RecomputeArgs): RecomputeResult {
   const endState = decideEndState(game, totalsByTeam, rounds.length);
   const result = endState.kind === 'finished' ? endState.result : undefined;
 
+  // The requirement for the round nobody has played yet. It is asked of the
+  // same function the played rounds went through, in a context standing one
+  // round further on, so a rule set that counts rounds answers consistently
+  // instead of being special-cased here.
+  const nextContext = buildContext({
+    ruleSet,
+    teamIds,
+    roundNumber: rounds.length + 1,
+    inputs: teamIds.map((teamId) => emptyTeamRoundInput(teamId)),
+    scoreBefore: totalsByTeam,
+    modules: args.modules,
+  });
+
   const nextRequirement: Record<TeamId, number | null> = {};
   for (const teamId of teamIds) {
-    nextRequirement[teamId] =
-      initialMeldRequirement(ruleSet.configuration, totalsByTeam[teamId] ?? 0)?.required ?? null;
+    nextRequirement[teamId] = openingRequirement(nextContext, totalsByTeam[teamId] ?? 0);
   }
 
   const projection: GameProjection = {
@@ -99,19 +112,29 @@ export function recomputeGame(args: RecomputeArgs): RecomputeResult {
  * End-of-game evaluation (spec §14, §17.2).
  *
  * The round in progress is always played out first, so this only runs on
- * committed rounds. On an exact tie the app plays another round — an explicit
- * app policy, not a rule any source describes.
+ * committed rounds. Two end conditions are configured rather than coded: a
+ * target somebody has to pass, or an agreed number of rounds after which the
+ * totals are simply compared. Both then take the same last step — highest
+ * total wins — so the winner is decided in one place for every rule set.
+ *
+ * On an exact tie the app plays another round. That is an explicit app policy,
+ * not a rule any source describes, and it applies to both conditions: a game
+ * over ten rounds that ends level plays an eleventh.
  */
 function decideEndState(game: Game, totals: Record<TeamId, number>, roundCount: number): EndState {
   const endGame = game.effectiveRuleSet.configuration.endGame;
-  const inProgress: EndState = { kind: 'inProgress', targetScore: endGame.targetScore };
-
-  if (roundCount === 0) return inProgress;
-
   const teamIds = game.teams.map((team) => team.id);
 
-  const reached = teamIds.filter((teamId) => (totals[teamId] ?? 0) >= endGame.targetScore);
-  if (reached.length === 0) return inProgress;
+  const objective = objectiveFor(endGame, roundCount);
+
+  const inProgress: EndState = { kind: 'inProgress', objective };
+  if (roundCount === 0) return inProgress;
+
+  const decided =
+    endGame.mode === 'plannedRounds'
+      ? roundCount >= endGame.plannedRounds
+      : teamIds.some((teamId) => (totals[teamId] ?? 0) >= endGame.targetScore);
+  if (!decided) return inProgress;
 
   const best = Math.max(...teamIds.map((teamId) => totals[teamId] ?? 0));
   const leaders = teamIds.filter((teamId) => (totals[teamId] ?? 0) === best);
@@ -120,7 +143,7 @@ function decideEndState(game: Game, totals: Record<TeamId, number>, roundCount: 
   if (tie && endGame.winner.tie === 'play-extra-round') {
     // Deliberately not finished: another round is played to break the tie. The
     // distinct state is what lets the UI say so without re-deriving it.
-    return { kind: 'tieBreakRound', leaderTeamIds: leaders, targetScore: endGame.targetScore };
+    return { kind: 'tieBreakRound', leaderTeamIds: leaders, objective };
   }
 
   return {

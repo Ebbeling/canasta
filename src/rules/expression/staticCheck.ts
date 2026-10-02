@@ -87,6 +87,7 @@ export function collectRefs(
       break;
 
     case 'capability':
+    case 'roundNumber':
       break;
 
     case 'add':

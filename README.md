@@ -7,7 +7,7 @@ scorecalculator in één — bedoeld voor gebruik aan de kaarttafel, op een tele
 
 ## Features
 
-- **Classic Canasta**, **Modern American Canasta** en **Two-Handed Canasta**
+- **Classic Canasta**, **Modern American Canasta**, **Two-Handed Canasta** en **Paul's regels**
 - Huisregels per partij, zonder de regelset zelf aan te passen
 - Automatische puntentelling met een uitlegbare opbouw per ronde
 - Correcties die alle latere rondes opnieuw doorrekenen

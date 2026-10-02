@@ -1,5 +1,6 @@
 import type { GameId, PlayerId, PresetId, RuleSetId, TeamId } from './ids';
 import type { ValidationIssue } from './result';
+import type { EndGameConfig } from '@/rules/schema/configuration';
 import type { ConfigOverride, RuleSet } from '@/rules/schema/ruleSet';
 
 export interface Player {
@@ -71,17 +72,41 @@ export interface Game {
 }
 
 /**
- * Where a game stands relative to its target score.
+ * What has to happen for this game to end, with the figures to say it.
+ *
+ * A game either plays towards a target score or plays an agreed number of
+ * rounds; which of the two is a property of the rule set, so every screen that
+ * wants to say "nog 1.200 tot 5.000" or "ronde 3 van 10" can do it from here
+ * instead of reading a configuration it is not allowed to read.
+ */
+export type GameObjective =
+  | { kind: 'targetScore'; targetScore: number }
+  | { kind: 'plannedRounds'; plannedRounds: number; roundsPlayed: number };
+
+/**
+ * The objective a rule set sets, with the rounds played so far folded in.
+ *
+ * One place, so the projection and the screens that describe it can never
+ * disagree about which end condition a game is running under.
+ */
+export function objectiveFor(endGame: EndGameConfig, roundsPlayed: number): GameObjective {
+  return endGame.mode === 'plannedRounds'
+    ? { kind: 'plannedRounds', plannedRounds: endGame.plannedRounds, roundsPlayed }
+    : { kind: 'targetScore', targetScore: endGame.targetScore };
+}
+
+/**
+ * Where a game stands relative to its objective.
  *
  * Exists because `result: undefined` is ambiguous on its own: it means both
- * "nobody is near the target" and "two teams are tied on it and the app policy
+ * "nobody is near the end" and "two teams are tied on it and the app policy
  * is to play another round". Without this the UI could only tell them apart by
  * re-deriving the end condition, which is exactly the rule interpretation the
  * UI must never do.
  */
 export type EndState =
-  | { kind: 'inProgress'; targetScore: number }
-  | { kind: 'tieBreakRound'; leaderTeamIds: TeamId[]; targetScore: number }
+  | { kind: 'inProgress'; objective: GameObjective }
+  | { kind: 'tieBreakRound'; leaderTeamIds: TeamId[]; objective: GameObjective }
   | { kind: 'finished'; result: GameResult };
 
 /** The derived view of a game: standings, per-round totals, end state. */

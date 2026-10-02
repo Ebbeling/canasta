@@ -19,6 +19,14 @@ export type NumExpr =
   | { op: 'count'; field: FieldId }
   /** Numeric value at a configuration path. */
   | { op: 'config'; path: ConfigPath; fallback?: number }
+  /**
+   * The round being scored, counting from 1.
+   *
+   * Round scope: it is the same number for every team, which is what lets a
+   * rule set state an opening requirement that grows with the round without
+   * reaching for any team's input.
+   */
+  | { op: 'roundNumber' }
   /** Index into a numeric array in the configuration, e.g. the red-three table. */
   | { op: 'lookup'; path: ConfigPath; index: NumExpr; clamp?: boolean; fallback?: number }
   /** Look up a keyed numeric map in the configuration, e.g. the going-out map. */

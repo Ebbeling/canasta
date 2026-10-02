@@ -465,7 +465,79 @@ drempels en zegt expliciet dat alle overige regels gelijk zijn. `Verified: ja`.
 
 ---
 
-# 4. Open beslissingen — afgehandeld
+# 4. Paul's regels (huisregels)
+
+Geen primaire bron. Dit is een huisvariant; er bestaat geen publicatie om hem tegen te houden,
+en dat is zelf een bevinding. De regelset voert daarom `source.name: "Huisregel"` **zonder URL
+en zonder raadpleegdatum**, en elke waarde die Paul niet beschreven heeft staat als
+`not-specified` in `provenance`, met Classic Canasta als herkomst.
+
+## 4.1 Wat de huisregel wél beschrijft
+
+| Rule | Value | Source | Verified | Effect | Notes |
+|---|---|---|---|---|---|
+| cardsPerPlayer | **26** | Huisregel | ja | advisory | Uitdrukkelijk 26, niet 2 × 13 |
+| standardDecks | **6** | Huisregel | ja | advisory | — |
+| initial meld | **rondenummer × 30** | Huisregel | ja | validation | Ronde 1 → 30, ronde 10 → 300; onbegrensd, en gelijk voor alle teams |
+| rode drie in hand | **−300 per stuk** | Huisregel | ja | computed | Altijd negatief |
+| zwarte drie in hand | **−100 per stuk** | Huisregel | ja | computed | Altijd negatief |
+| uitgaan | **+100** | Huisregel | ja | computed | — |
+| verborgen uitgaan | **bestaat niet** | Huisregel | ja | computed | `goOut.concealedEnabled: false` + capability uit |
+| einde van de partij | **vast aantal rondes**, standaard 10 | Huisregel | ja | computed | Géén doelscore |
+| winnaar | **hoogste totaal over alle rondes** | Huisregel | ja | computed | Niet de laatste ronde, niet het aantal gewonnen rondes |
+
+## 4.2 Wat ingevuld moest worden om een geldige regelset te krijgen
+
+Een regelset is pas geldig als elk veld een waarde heeft. De waarden hieronder heeft Paul niet
+beschreven; ze komen uit Classic (§1) en staan als `not-specified` in de provenance, zodat het
+regelscherm ze niet als huisregel presenteert. De laatste rij is de uitzondering: die is geen
+Classic-waarde maar een app-keuze, en staat als zodanig gemarkeerd.
+
+| Pad | Ingevuld met | Waarom |
+|---|---|---|
+| `players.default` | 4 | Classic |
+| `teams.count` / `teams.teamSize` | 2 × 2, partnership | Classic |
+| `deck.jokers` | 12 | Volgt uit zes spellen: 6 × 2 |
+| `deck.totalCards` | 324 | Volgt uit 6 × 52 + 12 |
+| `dealing.drawCount` | 1 | Classic |
+| `scoring.canastas.natural` / `.mixed` | 500 / 300 | Classic |
+| `scoring.cardValues` | ongewijzigd | Classic |
+| `goOut.minimumCanastas` | 1 | Classic |
+| `goOut.permissionFromPartner` | ja | Classic |
+| `threes.black.meldValue` / `.freezesPile` | 5 / nee | Classic (Pagat-lezing) |
+| `initialMeld.countTopDiscardCard` | ja | Classic |
+| `penalties.handCardsSubtracted` | ja | Classic |
+| `endGame.winner.tie` | `play-extra-round` | App-keuze, net als bij elke andere regelset — `app-policy`, geen bronregel. Een partij die na tien rondes precies gelijk eindigt, speelt er één bij |
+
+## 4.3 Wat het datamodel ervoor nodig had
+
+Twee dingen die Paul's regels vroegen en die geen enkele bestaande regelset nodig had. Beide
+zijn declaratief opgelost; er staat nergens een `if` op een variant.
+
+1. **Een openingsmelding die de ronde telt.** De bestaande staffel beantwoordt "hoeveel heeft
+   een team met 1.600 punten nodig" — een vraag over de *stand*. Dertig punten per ronde is een
+   vraag over het *rondenummer*, en geen reeks grenzen over een cumulatieve score drukt dat uit.
+   Daarom is er `initialMeld.requirement`: een optionele expressie die, waar een regelset er
+   een heeft, de staffel vervangt. Ze wordt in rondecontext geëvalueerd — `validateRuleSet`
+   weigert een expressie die naar de invoer van een team grijpt — zodat het getal voor iedereen
+   aan tafel hetzelfde is. Classic, Modern American en Two-Handed hebben er geen en houden hun
+   staffel ongewijzigd.
+
+2. **Een partij die op rondes eindigt in plaats van op een score.** `endGame.mode` kiest
+   tussen `targetScore` en `plannedRounds`; `endGame.plannedRounds` zegt hoeveel. De laatste
+   stap is voor beide hetzelfde — hoogste totaal wint — zodat de winnaar op één plek wordt
+   bepaald. `plannedRounds` is gewone spelconfiguratie: hij staat als instelling in de
+   regelset en komt daarmee vanzelf in stap 4 van de nieuwe-partij-wizard terecht, via dezelfde
+   override-pijplijn als elke andere huisregel. Elke toekomstige regelset kan hem gebruiken.
+
+Eén ding is bewust *niet* gegeneraliseerd: `extensions.openingPerRound` (30) staat in het
+`extensions`-blok dat §35 van de specificatie daarvoor heeft. "Hoeveel gaat de opening per
+ronde omhoog" is voorlopig van één variant, en krijgt pas een gedeeld begrip als een tweede
+regelset erom vraagt.
+
+---
+
+# 5. Open beslissingen — afgehandeld
 
 Alle zes punten zijn op 2026-09-19 door de opdrachtgever beslist. De beslissingen staan
 hieronder met de status die ze in de implementatie krijgen.
@@ -493,7 +565,7 @@ Twee formuleringen die in de app letterlijk zo moeten worden aangehouden:
 
 ---
 
-# 5. Wat dit betekent voor de architectuur
+# 6. Wat dit betekent voor de architectuur
 
 Drie bevindingen uit het onderzoek die het datamodel raken:
 

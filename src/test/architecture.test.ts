@@ -121,6 +121,55 @@ describe('the tournament layer is pure', () => {
 });
 
 /**
+ * A rule set is data, and a variant is never a branch.
+ *
+ * The engine already refuses to read `ruleSet.family` — ESLint sees to that.
+ * This is the other half of the same promise, and the half a linter cannot
+ * see: no code anywhere recognises a particular rule set by name. Paul's
+ * regels is the test case, because it is the first built-in that differs from
+ * Classic in ways the configuration had to grow for: an opening that counts
+ * rounds, threes that are always a penalty, a game that ends on a round count.
+ * If any of that had been solved with `if (ruleSet.id === …)` it would show up
+ * here.
+ */
+describe('no code knows which variant it is looking at', () => {
+  const sources = [
+    ...PURE_DIRECTORIES.flatMap(sourceFiles),
+    ...sourceFiles('src/application'),
+    ...files,
+    ...sourceFiles('server/src'),
+  ].filter((file) => !file.includes('.test.'));
+
+  /** Where a built-in rule set is allowed to be named: its own definition. */
+  const DEFINITIONS = new Set([
+    join('src', 'rules', 'builtin', 'index.ts'),
+    join('src', 'rules', 'builtin', 'classic.ts'),
+    join('src', 'rules', 'builtin', 'modernAmerican.ts'),
+    join('src', 'rules', 'builtin', 'twoHanded.ts'),
+    join('src', 'rules', 'builtin', 'paulsRules.ts'),
+  ]);
+
+  it.each([
+    ['paulsRules', /paulsRules|pauls-rules/i],
+    ['modernAmerican', /modernAmerican/],
+    ['twoHanded', /twoHanded/],
+  ])('never names %s outside the rule set definitions', (_name, pattern) => {
+    const offenders = sources.filter(
+      (file) => !DEFINITIONS.has(file) && pattern.test(readFileSync(file, 'utf8')),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it('never compares a rule set id or family to a literal', () => {
+    const comparison =
+      /(ruleSet|ruleset|variant|effectiveRuleSet)\s*(\.(id|family)\s*)?[=!]==?\s*['"`]/;
+
+    const offenders = sources.filter((file) => comparison.test(readFileSync(file, 'utf8')));
+    expect(offenders).toEqual([]);
+  });
+});
+
+/**
  * The boundaries the tournament server has to keep.
  *
  * The whole claim of the multi-device feature is that the tournament rules are

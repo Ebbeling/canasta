@@ -36,6 +36,9 @@ export function evalNum(expr: NumExpr, ctx: EvalContext): number {
     case 'config':
       return toNumber(getPath(ctx.config, expr.path), expr.fallback ?? 0);
 
+    case 'roundNumber':
+      return ctx.round.number;
+
     case 'lookup': {
       const table = getPath(ctx.config, expr.path);
       if (!Array.isArray(table)) return expr.fallback ?? 0;

@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createTestStorage, type TestStorage } from '@/storage/testing';
 import { fixedClock } from '@/storage/time';
-import { BUILTIN_RULE_SETS, classic, modernAmerican, twoHanded } from '@/rules/builtin';
+import { BUILTIN_RULE_SETS, classic, modernAmerican, paulsRules, twoHanded } from '@/rules/builtin';
 import { partyOverrides } from '@/application/viewmodels/setup';
 import { createServices, type Services } from './index';
 
@@ -45,6 +45,7 @@ describe('creating a preset from a built-in', () => {
     ['Classic', classic],
     ['Modern American', modernAmerican],
     ['Two-Handed', twoHanded],
+    ["Paul's regels", paulsRules],
   ])('clones %s into an editable copy', async (_label, source) => {
     const preset = await makePreset(`Mijn ${source.name}`, source.id);
 

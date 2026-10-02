@@ -175,7 +175,7 @@ export function HomeRoute() {
               Nieuwe partij
             </span>
             <span className="hidden text-center text-note font-normal leading-snug text-muted text-pretty lg:block">
-              Classic, Modern American of Two-Handed. Klaar in drie stappen.
+              Classic, Modern American, Two-Handed of Paul's regels. Klaar in drie stappen.
             </span>
           </LinkButton>
         </div>

@@ -285,7 +285,9 @@ export const modernAmerican: RuleSet = {
     },
 
     endGame: {
+      mode: 'targetScore',
       targetScore: 8500,
+      plannedRounds: 0,
       evaluateAfterRound: true,
       winner: { strategy: 'highest-score', tie: 'play-extra-round' },
     },

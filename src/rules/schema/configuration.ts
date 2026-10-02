@@ -1,4 +1,5 @@
 import type { Json } from '@/domain/ids';
+import type { NumExpr } from './expression';
 
 export type CardRank =
   | 'joker'
@@ -45,8 +46,23 @@ export interface IncompleteMeldPenalty {
 
 export type TieBreakStrategy = 'play-extra-round' | 'shared-win';
 
+/**
+ * What finishes a game.
+ *
+ * `targetScore` plays on until somebody passes the target. `plannedRounds`
+ * plays an agreed number of rounds and then adds the totals up — there is no
+ * target at all, and reaching one would mean nothing. The two are separate
+ * concepts from the opening requirement, which decides what a team needs to
+ * lay down *within* a round.
+ */
+export type EndGameMode = 'targetScore' | 'plannedRounds';
+
 export interface EndGameConfig {
+  mode: EndGameMode;
+  /** Only consulted when `mode` is `targetScore`. */
   targetScore: number;
+  /** Only consulted when `mode` is `plannedRounds`: how many are played. */
+  plannedRounds: number;
   /** The round in progress is always played out before evaluating. */
   evaluateAfterRound: boolean;
   winner: {
@@ -99,6 +115,18 @@ export interface RuleSetConfiguration {
   initialMeld: {
     enabled: boolean;
     thresholds: InitialMeldThreshold[];
+    /**
+     * A computed opening minimum, which replaces the staircase where a rule
+     * set carries one.
+     *
+     * The staircase answers "how much does a team on 1.600 points need", which
+     * is the question Classic and Modern American ask. A variant can ask a
+     * different one — Paul's regels wants thirty points per round, so round
+     * seven needs 210 whatever the standings are — and no staircase over
+     * cumulative score can express that. The expression is evaluated in round
+     * scope, so it is the same number for every team.
+     */
+    requirement?: NumExpr;
     /** Modern American requires a clean triple in the opening meld. */
     requiresCleanTriple: boolean;
     countTopDiscardCard: boolean;

@@ -11,6 +11,7 @@ import {
 } from '@/application/fields/access';
 import { buildFieldLayout, type FieldVM } from '@/application/viewmodels/roundForm';
 import { previewRound } from '@/application/viewmodels/roundPreview';
+import { roundLabel } from '@/application/viewmodels/objective';
 import type { IssueVM } from '@/application/viewmodels/issues';
 import { roundDraftKey } from '@/application/services/roundService';
 import { useServices } from '@/app/servicesContext';
@@ -239,6 +240,10 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
   // before it lands would flash the defaults over the real values.
   if (!hydrated) return <LoadingState label="Ronde laden…" />;
 
+  // "Ronde 3", or "Ronde 3 van 10" where the rule set plans them. Which of the
+  // two is a property of the rule set, so the view model says it.
+  const heading = roundLabel(game.effectiveRuleSet, roundNumber);
+
   const team = game.teams[activeTeam];
   // "Toch opslaan" only makes sense once the errors are gone; while a round is
   // impossible the button stays plainly labelled and disabled.
@@ -313,7 +318,7 @@ export function RoundEntryRoute({ mode }: { mode: 'create' | 'correct' }) {
             </IconButton>
             <div className="flex-1 text-center md:text-left">
               <h1 className="text-body font-semibold md:font-display md:text-2xl md:tracking-title">
-                {mode === 'correct' ? `Ronde ${roundNumber} corrigeren` : `Ronde ${roundNumber}`}
+                {mode === 'correct' ? `${heading} corrigeren` : heading}
               </h1>
               <p className="flex items-center justify-center gap-1.5 text-xs text-muted md:justify-start">
                 {state.dirty ? (

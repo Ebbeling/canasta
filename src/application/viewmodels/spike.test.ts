@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classic, modernAmerican, twoHanded } from '@/rules/builtin';
+import { classic, modernAmerican, paulsRules, twoHanded } from '@/rules/builtin';
 import { buildFieldLayout, visibleFields } from './roundForm';
 import { describeRuleSet } from './rulesView';
 import { blankInput, readFieldValue, writeFieldValue } from '@/application/fields/access';
@@ -10,12 +10,17 @@ import { blankInput, readFieldValue, writeFieldValue } from '@/application/field
  *
  * If a case here needs a special branch, the answer is to extend the declarative
  * metadata — never to add an exception in React.
+ *
+ * Paul's regels joined the list later, and joined it without a line of React
+ * changing: a hidden concealed-going-out field, a black-three count and an
+ * opening that counts rounds are all metadata.
  */
 
 const RULE_SETS = [
   ['Classic', classic],
   ['Modern American', modernAmerican],
   ['Two-Handed', twoHanded],
+  ["Paul's regels", paulsRules],
 ] as const;
 
 describe.each(RULE_SETS)('%s — round form from metadata alone', (_name, ruleSet) => {
@@ -84,7 +89,9 @@ describe.each(RULE_SETS)('%s — rules screen from metadata alone', (_name, rule
   it('produces a headline and a summary line', () => {
     expect(description.headline).toBe(ruleSet.name);
     expect(description.summaryLine).toMatch(/spelers?/);
-    expect(description.summaryLine).toMatch(/punten/);
+    // How the game ends, whichever way this rule set ends one: a target score
+    // in points, or an agreed number of rounds.
+    expect(description.summaryLine).toMatch(/punten|rondes?/);
   });
 
   it('gives every part of the summary line its own unit', () => {
@@ -140,9 +147,14 @@ describe.each(RULE_SETS)('%s — rules screen from metadata alone', (_name, rule
     }
   });
 
-  it('names its source with a URL and a retrieval date', () => {
-    expect(description.source.url).toMatch(/^https:\/\//);
-    expect(description.source.retrievedAt).toBe('2026-09-19');
+  it('names its source, with a URL and a date where there is one to give', () => {
+    // A house variant has no publication behind it. It still has to name where
+    // its rules come from; it simply cannot link to them.
+    expect(description.source.name).toBeTruthy();
+    if (description.source.url !== undefined) {
+      expect(description.source.url).toMatch(/^https:\/\//);
+      expect(description.source.retrievedAt).toBe('2026-09-19');
+    }
   });
 
   it('labels every capability in Dutch', () => {

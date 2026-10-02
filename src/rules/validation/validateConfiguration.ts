@@ -43,7 +43,45 @@ export function validateConfiguration(
   }
 
   issues.push(...partyStructure(configuration));
+  issues.push(...endCondition(configuration));
   issues.push(...capabilityConsistency(ruleSet, configuration));
+  return issues;
+}
+
+/**
+ * The end condition: the figure the configured mode actually uses.
+ *
+ * A rule set that plays a fixed number of rounds has no target score, and one
+ * that plays to a target has no round count, so neither value can be checked
+ * on its own. Checked here rather than per rule set, because a custom rule set
+ * and a game-level house rule reach the same mode through the same pipeline.
+ */
+function endCondition(configuration: RuleSetConfiguration): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const { endGame } = configuration;
+
+  if (endGame.mode !== 'targetScore' && endGame.mode !== 'plannedRounds') {
+    issues.push({
+      code: 'endGame.unknownMode',
+      severity: 'error',
+      message: `Onbekend einde-van-de-partij: '${String(endGame.mode)}'.`,
+      paths: ['endGame.mode'],
+    });
+    return issues;
+  }
+
+  if (
+    endGame.mode === 'plannedRounds' &&
+    (!Number.isInteger(endGame.plannedRounds) || endGame.plannedRounds < 1)
+  ) {
+    issues.push({
+      code: 'endGame.plannedRounds',
+      severity: 'error',
+      message: 'Een partij over een vast aantal rondes heeft minstens één ronde nodig.',
+      paths: ['endGame.plannedRounds'],
+    });
+  }
+
   return issues;
 }
 

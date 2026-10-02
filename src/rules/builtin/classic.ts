@@ -147,7 +147,10 @@ export const classic: RuleSet = {
     specialHands: { enabled: false, mode: 'replace', hands: [] },
 
     endGame: {
+      mode: 'targetScore',
       targetScore: 5000,
+      // Unused in this mode: Classic plays on until a team passes the target.
+      plannedRounds: 0,
       evaluateAfterRound: true,
       winner: { strategy: 'highest-score', tie: 'play-extra-round' },
     },
